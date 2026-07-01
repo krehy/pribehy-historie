@@ -38,7 +38,12 @@ Lehký spec (ne PRD) — zachycuje rozhodnutá UX/architektonická rozhodnutí, 
 - Karlův most (AI storybook): `cze-charles-iv-green.jpg` (greenscreen), `cze-bridge-founding.mp4`, `cze-bridge-eggs.mp4`, `cze-bridge-workers.jpg`.
 - Plánováno: `cze-bridge-hero.mp4`, `cze-astrolabe.mp4`, `cze-mason-green.jpg`, `cze-bridge-night.jpg`.
 
+## 3. úroveň mapy — historické země (hotovo)
+- Klik na **Česko** → přiblížení (zoom ~46, `maxZoom` 80 v region módu, bez rough filtru) a rozpad na **historické země** Koruny české: **Čechy / Morava / Slezsko** (`public/cz-lands.json`, dissolve krajů přes mapshaper; POZOR: d3-geo chce vnější ring **CW**).
+- Klik na zemi → kinematická osa jen s příběhy té země. Příběh nese `region` (Karlův most + univerzita = `cechy`). Země bez příběhů ztlumené.
+- **Kritické:** `ZoomableGroup.onMoveEnd` reaguje jen na `event.sourceEvent` (skutečné gesto). Bez toho vzniká feedback loop (setView → RSM echo → setView) + spurious přeznačování světadílu/state.
+
 ## Backlog
-- **Česko = 3. úroveň:** klik na ČR → přiblížit + rozpad na **kraje**; klik na kraj → časová osa příběhů daného kraje. Příběhy dostanou `region` (Karlův most = Praha). Kraje bez příběhů ztlumené. (Potřebuje geometrii krajů.)
-- Ambient hudba (audio slot).
+- Ambient hudba (audio slot); voiceover.
 - Code-splitting (bundle > 500 kB).
+- Další příběhy + per-země obsah (Morava/Slezsko).
