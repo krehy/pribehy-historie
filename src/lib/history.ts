@@ -1,0 +1,101 @@
+/**
+ * history.ts — odvození dat pro navigaci z pole příběhů.
+ * Countries i časová osa vznikají z mock dat, nic není natvrdo.
+ */
+
+import { STORIES, type Story } from "@/data/stories";
+import { countryName } from "@/data/countries";
+
+/** Formátování roku: záporné = př. n. l. */
+export function formatYear(year: number): string {
+  if (year < 0) return `${Math.abs(year)} př. n. l.`;
+  return `${year} n. l.`;
+}
+
+/** Kompaktní rozsah, např. „461–429 př. n. l." nebo „1348" */
+export function formatRange(from: number, to: number): string {
+  if (from === to) return formatYear(from);
+  // Stejná éra (obě záporná / obě kladná) → sjednotíme příponu
+  if (from < 0 && to < 0) return `${Math.abs(from)}–${Math.abs(to)} př. n. l.`;
+  if (from > 0 && to > 0) return `${from}–${to} n. l.`;
+  return `${formatYear(from)} – ${formatYear(to)}`;
+}
+
+export interface CountryWithStories {
+  a3: string;
+  name: string;
+  count: number;
+  yearFrom: number;
+  yearTo: number;
+}
+
+/** Státy, které mají příběhy — odvozeno z dat. */
+export function countriesWithStories(stories: Story[] = STORIES): CountryWithStories[] {
+  const map = new Map<string, CountryWithStories>();
+  for (const s of stories) {
+    const existing = map.get(s.countryCode);
+    if (existing) {
+      existing.count += 1;
+      existing.yearFrom = Math.min(existing.yearFrom, s.yearFrom);
+      existing.yearTo = Math.max(existing.yearTo, s.yearTo);
+    } else {
+      map.set(s.countryCode, {
+        a3: s.countryCode,
+        name: countryName(s.countryCode),
+        count: 1,
+        yearFrom: s.yearFrom,
+        yearTo: s.yearTo,
+      });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, "cs"));
+}
+
+/** Množina A3 kódů států s příběhy — rychlý lookup pro mapu. */
+export function countryCodesWithStories(stories: Story[] = STORIES): Set<string> {
+  return new Set(stories.map((s) => s.countryCode));
+}
+
+/** Příběhy jednoho státu, seřazené chronologicky. */
+export function storiesForCountry(a3: string, stories: Story[] = STORIES): Story[] {
+  return stories
+    .filter((s) => s.countryCode === a3)
+    .sort((a, b) => a.yearFrom - b.yearFrom);
+}
+
+export interface TimelineSegment {
+  story: Story;
+  /** Pozice středu na ose 0–1 */
+  position: number;
+  /** Šířka rozsahu na ose 0–1 */
+  width: number;
+}
+
+/**
+ * Časová osa pro stát: vrací rozsah (min–max) a jednotlivé body/segmenty
+ * s normalizovanou pozicí, aby šla vykreslit lineárně.
+ */
+export function timelineForCountry(a3: string, stories: Story[] = STORIES) {
+  const items = storiesForCountry(a3, stories);
+  if (items.length === 0) {
+    return { min: 0, max: 0, span: 0, segments: [] as TimelineSegment[] };
+  }
+  const min = Math.min(...items.map((s) => s.yearFrom));
+  const max = Math.max(...items.map((s) => s.yearTo));
+  // Doplníme okraje, ať body nelepí na kraj osy
+  const pad = Math.max(20, Math.round((max - min) * 0.08));
+  const lo = min - pad;
+  const hi = max + pad;
+  const span = hi - lo || 1;
+
+  const segments: TimelineSegment[] = items.map((story) => {
+    const mid = (story.yearFrom + story.yearTo) / 2;
+    return {
+      story,
+      position: (mid - lo) / span,
+      width: (story.yearTo - story.yearFrom) / span,
+    };
+  });
+
+  return { min: lo, max: hi, span, segments };
+}
