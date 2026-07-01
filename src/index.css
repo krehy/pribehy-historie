@@ -63,3 +63,252 @@
     scrollbar-width: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Header + dvousloupcové navmenu (layout přejatý z gtw-web,
+   překreslený do pergamenového stylu Příběhů historie).
+   Vlevo brand/logo, vpravo velké odkazy + CTA. Otevírá se z prava,
+   pak se přelije pergamenový podklad, nakonec najede levý brand.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Kruhový hamburger → přejde v křížek (X) */
+.ph-burger {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  width: 46px;
+  height: 46px;
+  border-radius: 9999px;
+  border: 2px solid rgba(47, 42, 36, 0.12);
+  background: rgba(244, 196, 48, 0.08);
+  cursor: pointer;
+  flex: none;
+  transition: background 0.25s, border-color 0.25s;
+}
+.ph-burger:hover {
+  background: rgba(244, 196, 48, 0.2);
+  border-color: #e0a91e;
+}
+.ph-burger .bl {
+  display: block;
+  height: 2.5px;
+  width: 20px;
+  border-radius: 2px;
+  background: #2f2a24;
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), background 0.2s;
+}
+.ph-burger[aria-expanded="true"] .bl:nth-child(1) {
+  transform: translateY(4.25px) rotate(45deg);
+}
+.ph-burger[aria-expanded="true"] .bl:nth-child(2) {
+  transform: translateY(-4.25px) rotate(-45deg);
+}
+
+/* Overlay */
+.ph-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  visibility: hidden;
+  pointer-events: none;
+  backdrop-filter: blur(0);
+  transition: backdrop-filter 0.5s ease, visibility 0s linear 0.9s;
+}
+.ph-drawer.open {
+  visibility: visible;
+  pointer-events: auto;
+  backdrop-filter: blur(10px);
+  transition: backdrop-filter 0.5s ease 0.3s, visibility 0s;
+}
+
+/* Celoplošný pergamenový podklad — přelije se až po vyjetí panelu */
+.ph-drawer-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  background: radial-gradient(120% 100% at 78% 50%, #fbf4e2, #efe4c8);
+  transition: opacity 0.8s ease;
+}
+.ph-drawer.open .ph-drawer-sheet {
+  opacity: 0.97;
+  transition-delay: 0.45s;
+}
+
+/* Pravý panel s odkazy — vyjede z prava jako první */
+.ph-drawer-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  width: min(560px, 100vw);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(40px, 7vh, 90px) clamp(28px, 5vw, 72px);
+  border-left: 2px solid rgba(47, 42, 36, 0.08);
+  background: linear-gradient(
+      200deg,
+      rgba(244, 196, 48, 0.14),
+      rgba(244, 196, 48, 0.04) 55%,
+      transparent
+    ),
+    #fdfaf0;
+  box-shadow: -40px 0 90px rgba(47, 42, 36, 0.16);
+  transform: translateX(100%);
+  will-change: transform;
+  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ph-drawer.open .ph-drawer-panel {
+  transform: none;
+}
+
+.ph-nav {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(4px, 1.4vh, 14px);
+}
+.ph-nav a {
+  font-family: "Baloo 2", system-ui, sans-serif;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  font-size: clamp(30px, 4.5vw, 60px);
+  line-height: 1.08;
+  color: #2f2a24;
+  width: fit-content;
+  transition: transform 0.3s ease, color 0.2s;
+}
+.ph-nav a:hover {
+  transform: translateX(12px);
+  color: #e0a91e;
+}
+.ph-nav a.active {
+  color: #e0a91e;
+}
+
+.ph-nav-foot {
+  margin-top: clamp(28px, 5vh, 52px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+/* Levý brand — objeví se až po ztmavnutí podkladu */
+.ph-drawer-brand {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: calc(100vw - 560px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 2.2vh, 28px);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.ph-drawer.open .ph-drawer-brand {
+  opacity: 1;
+  transform: none;
+  transition-delay: 0.7s;
+}
+
+@media (max-width: 980px) {
+  .ph-drawer-brand {
+    display: none;
+  }
+  .ph-drawer-panel {
+    width: 100vw;
+  }
+}
+
+/* Pomalý „Ken Burns" zoom média aktivní události na časové ose. */
+@keyframes kenburns {
+  0% {
+    transform: scale(1.05) translate(0, 0);
+  }
+  100% {
+    transform: scale(1.22) translate(-2%, -2%);
+  }
+}
+.kenburns {
+  animation: kenburns 7s ease-out forwards;
+}
+/* Jemný nekonečný drift pro scény v detailu příběhu. */
+.kenburns-loop {
+  animation: kenburns 20s ease-in-out infinite alternate;
+}
+
+/* Vylétající částice (prach / jiskry) v náladě scény. */
+.sparks {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.sparks i {
+  position: absolute;
+  bottom: -12px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  opacity: 0;
+  animation-name: nmb-rise;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sparks {
+    display: none;
+  }
+}
+
+/* Otočná kartička „věděli jste?" */
+.flip-card {
+  perspective: 1400px;
+}
+.flip-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-style: preserve-3d;
+}
+.flip-card.flipped .flip-inner {
+  transform: rotateY(180deg);
+}
+.flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.flip-back {
+  transform: rotateY(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kenburns {
+    animation: none;
+  }
+  .ph-drawer,
+  .ph-drawer.open,
+  .ph-drawer-sheet,
+  .ph-drawer.open .ph-drawer-sheet,
+  .ph-drawer-panel,
+  .ph-drawer.open .ph-drawer-panel,
+  .ph-drawer-brand,
+  .ph-drawer.open .ph-drawer-brand {
+    transition: none;
+    transition-delay: 0s;
+  }
+}
