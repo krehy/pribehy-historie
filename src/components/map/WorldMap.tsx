@@ -187,20 +187,22 @@ export function WorldMap({
                   const isSelected = a3 != null && a3 === selectedCountry;
 
                   if (!isMember) {
+                    // Ostatní světadíly zmizí — zůstane jen vybraný.
                     return (
                       <Geography
                         key={geo.rsmKey}
                         geography={geo}
                         style={{
                           default: {
-                            fill: continentTheme.mutedFill,
-                            stroke: `rgba(47,42,36,0.08)`,
-                            strokeWidth: 0.3,
+                            fill: "transparent",
+                            stroke: "transparent",
+                            strokeWidth: 0,
                             outline: "none",
-                            opacity: continentTheme.mutedOpacity,
+                            opacity: 0,
                             pointerEvents: "none",
+                            transition: "opacity 0.5s ease",
                           },
-                          hover: { fill: continentTheme.mutedFill, outline: "none" },
+                          hover: { fill: "transparent", outline: "none", opacity: 0 },
                           pressed: { outline: "none" },
                         }}
                       />

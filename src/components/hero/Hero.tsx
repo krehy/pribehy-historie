@@ -14,7 +14,7 @@ interface HeroProps {
 export function Hero({ onEnter }: HeroProps) {
   return (
     <motion.section
-      className="relative flex h-[100svh] flex-col items-center justify-center overflow-hidden px-6 text-center"
+      className="relative flex h-full flex-col items-center justify-center overflow-hidden px-6 text-center"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.8 }}
