@@ -1,16 +1,24 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Compass } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const NAV = [
-  { to: "/", label: "Mapa" },
-  { to: "/#timeline", label: "Časová osa" },
-  { to: "/#pribehy", label: "Příběhy" },
-  { to: "/o-projektu", label: "O projektu" },
-];
-
 export function Header() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+
+  // Scroll na sekci na Home (id="timeline"). Pokud nejsme na Home,
+  // nejdřív přejdeme na "/" a pak odscrollujeme.
+  const goToSection = (id: string) => {
+    const scroll = () =>
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (pathname !== "/") {
+      navigate("/");
+      setTimeout(scroll, 120);
+    } else {
+      scroll();
+    }
+  };
+
   return (
     <header className="sticky top-0 z-40 border-b border-stroke/30 bg-paper/85 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 md:px-6">
@@ -29,18 +37,36 @@ export function Header() {
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex">
-          {NAV.map((item) => (
-            <a
-              key={item.to}
-              href={item.to}
-              className={cn(
-                "rounded-md px-3 py-2 font-display text-sm tracking-wide text-ink-soft transition-colors hover:bg-country-hover/60 hover:text-ink",
-                pathname === item.to && "text-ink"
-              )}
-            >
-              {item.label}
-            </a>
-          ))}
+          <Link
+            to="/"
+            className={cn(
+              "rounded-md px-3 py-2 font-display text-sm tracking-wide text-ink-soft transition-colors hover:bg-country-hover/60 hover:text-ink",
+              pathname === "/" && "text-ink"
+            )}
+          >
+            Mapa
+          </Link>
+          <button
+            onClick={() => goToSection("timeline")}
+            className="rounded-md px-3 py-2 font-display text-sm tracking-wide text-ink-soft transition-colors hover:bg-country-hover/60 hover:text-ink"
+          >
+            Časová osa
+          </button>
+          <button
+            onClick={() => goToSection("timeline")}
+            className="rounded-md px-3 py-2 font-display text-sm tracking-wide text-ink-soft transition-colors hover:bg-country-hover/60 hover:text-ink"
+          >
+            Příběhy
+          </button>
+          <Link
+            to="/o-projektu"
+            className={cn(
+              "rounded-md px-3 py-2 font-display text-sm tracking-wide text-ink-soft transition-colors hover:bg-country-hover/60 hover:text-ink",
+              pathname === "/o-projektu" && "text-ink"
+            )}
+          >
+            O projektu
+          </Link>
         </nav>
       </div>
     </header>

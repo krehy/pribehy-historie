@@ -7,6 +7,10 @@ daného období.
 > Fáze projektu: **design & frontend skeleton**. Data jsou mocková
 > (`src/data/stories.ts`), žádný backend.
 
+**🌍 Živé demo:** https://krehy.github.io/pribehy-historie/
+(nasazuje se automaticky z větve `claude/pribeh-historie-frontend-w7usf4`
+přes GitHub Actions — viz `.github/workflows/deploy-pages.yml`).
+
 ## Spuštění
 
 ```bash

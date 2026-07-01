@@ -15,7 +15,8 @@ import { CompassRose } from "./CompassRose";
 import { MapFrame } from "./MapFrame";
 import { ParchmentDefs } from "./ParchmentDefs";
 
-const GEO_URL = "/world-110m.json";
+// Respektuje base (na GitHub Pages je to /pribehy-historie/).
+const GEO_URL = `${import.meta.env.BASE_URL}world-110m.json`;
 
 interface View {
   coordinates: [number, number];

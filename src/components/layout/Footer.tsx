@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Compass } from "lucide-react";
 
 export function Footer() {
@@ -20,15 +21,15 @@ export function Footer() {
           <div>
             <h5 className="font-display text-sm tracking-wide text-ink">Objevovat</h5>
             <ul className="mt-3 space-y-2 text-sm text-ink-soft">
-              <li><a className="hover:text-accent" href="/">Mapa světa</a></li>
-              <li><a className="hover:text-accent" href="/#timeline">Časová osa</a></li>
-              <li><a className="hover:text-accent" href="/#pribehy">Všechny příběhy</a></li>
+              <li><Link className="hover:text-accent" to="/">Mapa světa</Link></li>
+              <li><Link className="hover:text-accent" to="/">Časová osa</Link></li>
+              <li><Link className="hover:text-accent" to="/">Všechny příběhy</Link></li>
             </ul>
           </div>
           <div>
             <h5 className="font-display text-sm tracking-wide text-ink">Projekt</h5>
             <ul className="mt-3 space-y-2 text-sm text-ink-soft">
-              <li><a className="hover:text-accent" href="/o-projektu">O projektu</a></li>
+              <li><Link className="hover:text-accent" to="/o-projektu">O projektu</Link></li>
               <li><span className="opacity-70">Demo — mock data</span></li>
             </ul>
           </div>
