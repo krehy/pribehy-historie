@@ -108,17 +108,19 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
                 transition={{ duration: 0.35 }}
-                className="absolute left-4 top-4 flex items-center gap-2"
+                className="absolute inset-x-0 top-4 flex flex-col items-center gap-2 px-4"
               >
-                <button
-                  onClick={() => handleSelectContinent(null)}
-                  className="pointer-events-auto inline-flex items-center gap-1 rounded-full border-2 border-ink/10 bg-paper-light/90 px-4 py-2 font-display text-sm font-bold text-ink shadow-parchment backdrop-blur-sm transition-colors hover:bg-country-hover"
-                >
-                  <ChevronLeft className="h-4 w-4" /> Světadíly
-                </button>
-                <span className="hidden rounded-full bg-sun/90 px-3 py-1.5 font-display text-sm font-bold text-ink shadow-sticker sm:inline">
-                  Klikni na stát v {continentName(continent)}
-                </span>
+                <div className="flex w-full max-w-2xl items-center justify-between gap-2">
+                  <button
+                    onClick={() => handleSelectContinent(null)}
+                    className="pointer-events-auto inline-flex items-center gap-1 rounded-full border-2 border-ink/10 bg-paper-light/90 px-4 py-2 font-display text-sm font-bold text-ink shadow-parchment backdrop-blur-sm transition-colors hover:bg-country-hover"
+                  >
+                    <ChevronLeft className="h-4 w-4" /> Světadíly
+                  </button>
+                  <span className="rounded-full bg-sun px-3 py-1.5 font-display text-sm font-bold text-ink shadow-sticker">
+                    {continentName(continent)} · klikni na stát
+                  </span>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

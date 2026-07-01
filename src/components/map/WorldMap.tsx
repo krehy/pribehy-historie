@@ -5,6 +5,7 @@ import {
   ZoomableGroup,
   Sphere,
   Graticule,
+  Marker,
 } from "react-simple-maps";
 import { geoCentroid, geoPath } from "d3-geo";
 import { feature, merge } from "topojson-client";
@@ -22,6 +23,7 @@ import { MapFrame } from "./MapFrame";
 import { ParchmentDefs } from "./ParchmentDefs";
 
 const GEO_URL = `${import.meta.env.BASE_URL}world-110m.json`;
+const SUN = "#f4c430";
 
 interface View {
   coordinates: [number, number];
@@ -59,7 +61,6 @@ export function WorldMap({
   const viewRef = useRef<View>(DEFAULT_VIEW);
   const rafRef = useRef<number>(0);
 
-  // Načtení topojson (potřebujeme surová data kvůli slévání kontinentů).
   useEffect(() => {
     let ok = true;
     fetch(GEO_URL)
@@ -71,7 +72,6 @@ export function WorldMap({
     };
   }, []);
 
-  // Předpočítané tvary: obrysy světadílů (slité státy) + státy podle světadílu.
   const prepared = useMemo(() => {
     if (!topo) return null;
     const geoms = topo.objects.countries.geometries as any[];
@@ -82,7 +82,6 @@ export function WorldMap({
       if (!c) continue;
       (contGroups[c] ||= []).push(g);
     }
-    // Obrys světadílu = sloučené státy (vnitřní hranice zmizí).
     const continentFeatures = Object.entries(contGroups).map(([id, gs]) => ({
       id: id as ContinentId,
       feature: { type: "Feature", properties: {}, geometry: merge(topo, gs) } as any,
@@ -149,6 +148,8 @@ export function WorldMap({
 
   const { palette, country: cs } = mapTheme;
   const level: "world" | "continent" = selectedContinent ? "continent" : "world";
+  const contZoom = selectedContinent ? continentMeta(selectedContinent)?.zoom ?? 2.2 : 1;
+  const markR = 3.4 / contZoom; // konstantní velikost markeru bez ohledu na zoom
 
   return (
     <div className="relative h-full w-full overflow-hidden">
@@ -179,81 +180,133 @@ export function WorldMap({
               if (!prepared) return null;
 
               return (
-                <g filter={mapTheme.roughEdges.enabled ? "url(#rough-edges)" : undefined}>
+                <>
+                  <g filter={mapTheme.roughEdges.enabled ? "url(#rough-edges)" : undefined}>
+                    {level === "world"
+                      ? // ----- SVĚT: jen obrysy světadílů -----
+                        prepared.continentFeatures.map(({ id, feature: cf }) => {
+                          const has = storyContinents.has(id);
+                          const isHovered = id === hoveredContinent;
+                          const fill = isHovered
+                            ? continentTheme.hoverFill
+                            : has
+                            ? continentTheme.tints[id] ?? cs.default.fill
+                            : "#efe8d3";
+                          return (
+                            <path
+                              key={id}
+                              d={draw(cf) || undefined}
+                              onClick={() => has && onSelectContinent(id)}
+                              onMouseEnter={() => has && setHoveredContinent(id)}
+                              onMouseLeave={() => setHoveredContinent(null)}
+                              style={{
+                                fill,
+                                stroke: palette.ink,
+                                strokeWidth: isHovered ? 1.1 : has ? 0.8 : 0.4,
+                                strokeOpacity: has ? 0.9 : 0.4,
+                                opacity: has ? 1 : 0.5,
+                                cursor: has ? "pointer" : "default",
+                                outline: "none",
+                                transition: "fill 0.25s ease, stroke-width 0.2s ease",
+                              }}
+                            />
+                          );
+                        })
+                      : // ----- SVĚTADÍL: nakreslí se jednotlivé státy -----
+                        prepared.countriesByContinent[selectedContinent!]?.map((f, i) => {
+                          const numeric = String(f.id);
+                          const meta = countryByNumeric(numeric);
+                          const a3 = meta?.a3;
+                          const hasStories = a3 ? storyCodes.has(a3) : false;
+                          const isSelected = a3 != null && a3 === selectedCountry;
+
+                          const fill = isSelected
+                            ? cs.selected.fill
+                            : hasStories
+                            ? cs.hasStories.fill ?? cs.default.fill
+                            : cs.default.fill;
+                          const stroke = isSelected
+                            ? cs.selected.stroke
+                            : hasStories
+                            ? cs.hasStories.stroke ?? cs.default.stroke
+                            : cs.default.stroke;
+                          const strokeWidth = isSelected
+                            ? cs.selected.strokeWidth
+                            : hasStories
+                            ? cs.hasStories.strokeWidth ?? cs.default.strokeWidth
+                            : cs.default.strokeWidth;
+
+                          return (
+                            <path
+                              key={f.rsmKey || `${numeric}-${i}`}
+                              d={draw(f) || undefined}
+                              onClick={() => hasStories && a3 && onSelectCountry(a3)}
+                              onMouseEnter={() =>
+                                meta && setHoveredCountry({ name: meta.name, hasStories })
+                              }
+                              onMouseLeave={() => setHoveredCountry(null)}
+                              style={{
+                                fill,
+                                stroke,
+                                strokeWidth,
+                                opacity: hasStories ? 1 : 0.8,
+                                cursor: hasStories ? "pointer" : "default",
+                                outline: "none",
+                                transition: "fill 0.2s ease",
+                              }}
+                            />
+                          );
+                        })}
+                  </g>
+
+                  {/* Popisky / markery mimo zkreslující filtr */}
                   {level === "world"
-                    ? // ----- SVĚT: jen obrysy světadílů -----
-                      prepared.continentFeatures.map(({ id, feature: cf }) => {
-                        const has = storyContinents.has(id);
-                        const isHovered = id === hoveredContinent;
-                        const fill = isHovered
-                          ? continentTheme.hoverFill
-                          : continentTheme.tints[id] ?? cs.default.fill;
-                        return (
-                          <path
-                            key={id}
-                            d={draw(cf) || undefined}
-                            onClick={() => has && onSelectContinent(id)}
-                            onMouseEnter={() => has && setHoveredContinent(id)}
-                            onMouseLeave={() => setHoveredContinent(null)}
-                            style={{
-                              fill,
-                              stroke: palette.ink,
-                              strokeWidth: 0.6,
-                              strokeOpacity: has ? 0.85 : 0.4,
-                              opacity: has ? 1 : 0.55,
-                              cursor: has ? "pointer" : "default",
-                              outline: "none",
-                              transition: "fill 0.25s ease, opacity 0.25s ease",
-                            }}
-                          />
-                        );
-                      })
-                    : // ----- SVĚTADÍL: nakreslí se jednotlivé státy -----
-                      prepared.countriesByContinent[selectedContinent!]?.map((f, i) => {
-                        const numeric = String(f.id);
-                        const meta = countryByNumeric(numeric);
-                        const a3 = meta?.a3;
-                        const hasStories = a3 ? storyCodes.has(a3) : false;
-                        const isSelected = a3 != null && a3 === selectedCountry;
-
-                        const fill = isSelected
-                          ? cs.selected.fill
-                          : hasStories
-                          ? cs.hasStories.fill ?? cs.default.fill
-                          : cs.default.fill;
-                        const stroke = isSelected
-                          ? cs.selected.stroke
-                          : hasStories
-                          ? cs.hasStories.stroke ?? cs.default.stroke
-                          : cs.default.stroke;
-                        const strokeWidth = isSelected
-                          ? cs.selected.strokeWidth
-                          : hasStories
-                          ? cs.hasStories.strokeWidth ?? cs.default.strokeWidth
-                          : cs.default.strokeWidth;
-
-                        return (
-                          <path
-                            key={f.rsmKey || `${numeric}-${i}`}
-                            d={draw(f) || undefined}
-                            onClick={() => hasStories && a3 && onSelectCountry(a3)}
-                            onMouseEnter={() =>
-                              meta && setHoveredCountry({ name: meta.name, hasStories })
-                            }
-                            onMouseLeave={() => setHoveredCountry(null)}
-                            style={{
-                              fill,
-                              stroke,
-                              strokeWidth,
-                              opacity: hasStories ? 1 : 0.85,
-                              cursor: hasStories ? "pointer" : "default",
-                              outline: "none",
-                              transition: "fill 0.2s ease",
-                            }}
-                          />
-                        );
-                      })}
-                </g>
+                    ? // Názvy světadílů (jen ty s příběhy)
+                      prepared.continentFeatures
+                        .filter(({ id }) => storyContinents.has(id))
+                        .map(({ id }) => {
+                          const m = continentMeta(id);
+                          if (!m) return null;
+                          return (
+                            <Marker key={`lbl-${id}`} coordinates={m.center}>
+                              <text
+                                textAnchor="middle"
+                                dy={2}
+                                style={{
+                                  fontFamily: '"Baloo 2", sans-serif',
+                                  fontWeight: 800,
+                                  fontSize: 9,
+                                  fill: palette.ink,
+                                  paintOrder: "stroke",
+                                  stroke: palette.paperLight,
+                                  strokeWidth: 2.4,
+                                  strokeLinejoin: "round",
+                                  pointerEvents: "none",
+                                }}
+                              >
+                                {m.name}
+                              </text>
+                            </Marker>
+                          );
+                        })
+                    : // Pulzující „klikni sem" body na státech s příběhy
+                      prepared.countriesByContinent[selectedContinent!]
+                        ?.map((f) => {
+                          const a3 = countryByNumeric(String(f.id))?.a3;
+                          if (!a3 || !storyCodes.has(a3) || a3 === selectedCountry) return null;
+                          const c = prepared.countryCentroids[a3];
+                          if (!c) return null;
+                          return (
+                            <Marker key={`mk-${a3}`} coordinates={c}>
+                              <circle r={markR} fill={SUN} stroke={palette.ink} strokeWidth={markR * 0.25} />
+                              <circle r={markR} fill="none" stroke={SUN} strokeWidth={markR * 0.4}>
+                                <animate attributeName="r" values={`${markR};${markR * 3};${markR}`} dur="1.8s" repeatCount="indefinite" />
+                                <animate attributeName="opacity" values="0.8;0;0.8" dur="1.8s" repeatCount="indefinite" />
+                              </circle>
+                            </Marker>
+                          );
+                        })}
+                </>
               );
             }}
           </Geographies>
@@ -287,7 +340,7 @@ export function WorldMap({
       <MapFrame />
       <CompassRose className="absolute bottom-6 right-6 opacity-90" />
 
-      {/* Popisek — světadíl / stát */}
+      {/* Popisek při hoveru */}
       {(level === "world" ? hoveredContinent : hoveredCountry) && (
         <div className="pointer-events-none absolute left-1/2 top-6 -translate-x-1/2">
           <div className="rounded-full border-2 border-ink/10 bg-paper-light/90 px-4 py-1.5 shadow-parchment backdrop-blur-sm">
