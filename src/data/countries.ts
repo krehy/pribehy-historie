@@ -31,6 +31,7 @@ export const COUNTRIES: CountryMeta[] = [
   { a3: "IRQ", numeric: "368", name: "Irák" },
   { a3: "RUS", numeric: "643", name: "Rusko" },
   { a3: "USA", numeric: "840", name: "Spojené státy" },
+  { a3: "AUS", numeric: "036", name: "Austrálie" },
 ];
 
 const byNumeric = new Map(COUNTRIES.map((c) => [c.numeric, c]));
