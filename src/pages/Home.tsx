@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Globe2, MapPin, ScrollText } from "lucide-react";
+import { Globe2, MapPin, ScrollText, ChevronRight, Compass } from "lucide-react";
 import { LoadingScreen } from "@/components/loading/LoadingScreen";
 import { Hero } from "@/components/hero/Hero";
 import { WorldMap } from "@/components/map/WorldMap";
@@ -8,12 +8,21 @@ import { Timeline } from "@/components/timeline/Timeline";
 import { StoryGrid } from "@/components/stories/StoryGrid";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Arcs, Curl, Confetti } from "@/components/ui/Doodles";
 import {
-  countriesWithStories,
+  countriesInContinent,
+  continentsWithStories,
   formatRange,
+  statsForContinent,
   storiesForCountry,
 } from "@/lib/history";
 import { countryName } from "@/data/countries";
+import {
+  CONTINENTS,
+  continentName,
+  continentOfA3,
+  type ContinentId,
+} from "@/data/continents";
 import type { Story } from "@/data/stories";
 import { cn } from "@/lib/utils";
 
@@ -21,46 +30,68 @@ type Phase = "loading" | "hero" | "map";
 
 export default function Home() {
   const [phase, setPhase] = useState<Phase>("loading");
-  const [selected, setSelected] = useState<string | null>(null);
+  const [continent, setContinent] = useState<ContinentId | null>(null);
+  const [country, setCountry] = useState<string | null>(null);
   const [activeStory, setActiveStory] = useState<Story | null>(null);
   const exploreRef = useRef<HTMLDivElement>(null);
 
-  const countries = useMemo(() => countriesWithStories(), []);
-
-  const handleSelectCountry = useCallback((a3: string | null) => {
-    setSelected(a3);
-    setActiveStory(null);
-    if (a3) {
-      // Necháme mapu přiblížit a plynule sjedeme k časové ose.
-      setTimeout(() => {
-        exploreRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 700);
-    }
+  const scrollToExplore = useCallback(() => {
+    setTimeout(() => {
+      exploreRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 650);
   }, []);
 
-  // Filtrované příběhy: buď dle vybraného časového bodu, nebo celá země.
+  const handleSelectContinent = useCallback(
+    (id: ContinentId | null) => {
+      setContinent(id);
+      setCountry(null);
+      setActiveStory(null);
+      if (id) scrollToExplore();
+    },
+    [scrollToExplore]
+  );
+
+  const handleSelectCountry = useCallback(
+    (a3: string | null) => {
+      setCountry(a3);
+      setActiveStory(null);
+      if (a3) {
+        // Doplníme světadíl, kdyby stát přišel z jiného zdroje než mapy.
+        const c = continentOfA3(a3);
+        if (c) setContinent(c);
+        scrollToExplore();
+      }
+    },
+    [scrollToExplore]
+  );
+
   const visibleStories: Story[] = useMemo(() => {
-    if (!selected) return [];
+    if (!country) return [];
     if (activeStory) return [activeStory];
-    return storiesForCountry(selected);
-  }, [selected, activeStory]);
+    return storiesForCountry(country);
+  }, [country, activeStory]);
 
   return (
     <>
       <AnimatePresence>
-        {phase === "loading" && (
-          <LoadingScreen onDone={() => setPhase("hero")} />
-        )}
+        {phase === "loading" && <LoadingScreen onDone={() => setPhase("hero")} />}
       </AnimatePresence>
 
-      {/* Fullscreen sekce: hero odjede nahoru a odkryje mapu */}
+      {/* Fullscreen: hero odjede nahoru a odkryje mapu */}
       <section className="relative h-[100svh] w-full overflow-hidden bg-paper">
         {phase !== "loading" && (
           <div className="absolute inset-0">
-            <WorldMap selectedCountry={selected} onSelectCountry={handleSelectCountry} />
+            <WorldMap
+              selectedContinent={continent}
+              selectedCountry={country}
+              onSelectContinent={handleSelectContinent}
+              onSelectCountry={handleSelectCountry}
+            />
             <MapOverlay
-              selected={selected}
-              onReset={() => handleSelectCountry(null)}
+              continent={continent}
+              country={country}
+              onWorld={() => handleSelectContinent(null)}
+              onBackToContinent={() => setCountry(null)}
               onGoStories={() =>
                 exploreRef.current?.scrollIntoView({ behavior: "smooth" })
               }
@@ -83,56 +114,33 @@ export default function Home() {
         </AnimatePresence>
       </section>
 
-      {/* Sekce průzkumu: výběr země, časová osa, příběhy */}
+      {/* Sekce průzkumu */}
       <div ref={exploreRef} id="timeline" className="scroll-mt-16">
         <section className="mx-auto max-w-6xl px-4 py-14 md:px-6">
-          {!selected ? (
+          {/* Drobečková navigace */}
+          <Breadcrumb
+            continent={continent}
+            country={country}
+            onWorld={() => handleSelectContinent(null)}
+            onContinent={() => setCountry(null)}
+          />
+
+          {!continent ? (
+            <ContinentPicker onPick={handleSelectContinent} />
+          ) : !country ? (
             <CountryPicker
-              countries={countries}
-              onPick={(a3) => handleSelectCountry(a3)}
+              continent={continent}
+              onPick={handleSelectCountry}
+              onBack={() => handleSelectContinent(null)}
             />
           ) : (
-            <div>
-              <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <span className="flex items-center gap-2 font-script text-base italic text-ink-soft">
-                    <MapPin className="h-4 w-4" /> vybraná země
-                  </span>
-                  <h2 className="mt-1 font-display text-4xl tracking-wide text-ink">
-                    {countryName(selected)}
-                  </h2>
-                </div>
-                <Button variant="outline" onClick={() => handleSelectCountry(null)}>
-                  <Globe2 className="h-4 w-4" /> Zpět na celý svět
-                </Button>
-              </div>
-
-              <div className="card-parchment mb-12 px-6 py-10 md:px-12">
-                <Timeline
-                  countryCode={selected}
-                  activeStoryId={activeStory?.id ?? null}
-                  onSelect={setActiveStory}
-                />
-              </div>
-
-              <div id="pribehy" className="scroll-mt-16">
-                <div className="rule-ornament mb-8">
-                  <ScrollText className="h-5 w-5" />
-                </div>
-                <div className="mb-6 flex items-baseline justify-between">
-                  <h3 className="font-display text-2xl tracking-wide text-ink">
-                    {activeStory
-                      ? `Příběh · ${formatRange(activeStory.yearFrom, activeStory.yearTo)}`
-                      : "Příběhy této země"}
-                  </h3>
-                  <span className="font-script text-base italic text-ink-soft">
-                    {visibleStories.length}{" "}
-                    {visibleStories.length === 1 ? "příběh" : "příběhů"}
-                  </span>
-                </div>
-                <StoryGrid stories={visibleStories} />
-              </div>
-            </div>
+            <CountryDetail
+              country={country}
+              activeStory={activeStory}
+              visibleStories={visibleStories}
+              onSelectStory={setActiveStory}
+              onBack={() => setCountry(null)}
+            />
           )}
         </section>
       </div>
@@ -140,47 +148,58 @@ export default function Home() {
   );
 }
 
-/** Overlay ovládání nad mapou (dole vlevo). */
+/* ---------------- Overlay nad mapou ---------------- */
+
 function MapOverlay({
-  selected,
-  onReset,
+  continent,
+  country,
+  onWorld,
+  onBackToContinent,
   onGoStories,
 }: {
-  selected: string | null;
-  onReset: () => void;
+  continent: ContinentId | null;
+  country: string | null;
+  onWorld: () => void;
+  onBackToContinent: () => void;
   onGoStories: () => void;
 }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 p-5 md:p-8">
-      <div className="mx-auto flex max-w-6xl items-end justify-between">
+      <div className="mx-auto max-w-6xl">
         <motion.div
+          key={`${continent}-${country}`}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="pointer-events-auto max-w-xs rounded-lg border border-stroke/40 bg-paper-light/85 p-4 shadow-parchment backdrop-blur-sm"
+          transition={{ delay: 0.15 }}
+          className="pointer-events-auto max-w-xs rounded-2xl border-2 border-ink/10 bg-paper-light/90 p-4 shadow-parchment backdrop-blur-sm"
         >
-          {selected ? (
+          {country ? (
             <>
-              <p className="font-script text-sm italic text-ink-soft">právě prohlížíte</p>
-              <p className="font-display text-xl tracking-wide text-ink">
-                {countryName(selected)}
-              </p>
-              <div className="mt-3 flex gap-2">
-                <Button size="sm" onClick={onGoStories}>
-                  Příběhy
-                </Button>
-                <Button size="sm" variant="outline" onClick={onReset}>
-                  Celý svět
+              <p className="font-serif text-sm italic text-ink-soft">právě prohlížíte</p>
+              <p className="font-display text-xl font-bold text-ink">{countryName(country)}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button size="sm" onClick={onGoStories}>Příběhy</Button>
+                <Button size="sm" variant="outline" onClick={onBackToContinent}>
+                  Zpět na {continent ? continentName(continent) : "světadíl"}
                 </Button>
               </div>
             </>
+          ) : continent ? (
+            <>
+              <p className="font-serif text-sm italic text-ink-soft">světadíl</p>
+              <p className="font-display text-xl font-bold text-ink">{continentName(continent)}</p>
+              <p className="mt-1 text-sm text-ink-soft">
+                Vyber zvýrazněný stát a odkryje se jeho časová osa.
+              </p>
+              <Button size="sm" variant="outline" onClick={onWorld} className="mt-3">
+                <Globe2 className="h-4 w-4" /> Celý svět
+              </Button>
+            </>
           ) : (
             <>
-              <p className="font-display text-sm tracking-wide text-ink">
-                Vyberte zemi na mapě
-              </p>
+              <p className="font-display text-sm font-bold text-ink">Vyber světadíl 🗺️</p>
               <p className="mt-1 text-sm text-ink-soft">
-                Zvýrazněné země skrývají příběhy. Klikněte a mapa se přiblíží.
+                Klikni na světadíl — přiblíží se a rozdělí na státy.
               </p>
             </>
           )}
@@ -190,45 +209,205 @@ function MapOverlay({
   );
 }
 
-/** Mřížka zemí s příběhy pro rychlý výběr (když není nic vybráno). */
-function CountryPicker({
-  countries,
-  onPick,
+/* ---------------- Drobečková navigace ---------------- */
+
+function Breadcrumb({
+  continent,
+  country,
+  onWorld,
+  onContinent,
 }: {
-  countries: ReturnType<typeof countriesWithStories>;
-  onPick: (a3: string) => void;
+  continent: ContinentId | null;
+  country: string | null;
+  onWorld: () => void;
+  onContinent: () => void;
 }) {
   return (
-    <div className="text-center">
-      <span className="font-script text-lg italic text-ink-soft">začněte objevovat</span>
-      <h2 className="mt-1 font-display text-4xl tracking-wide text-ink">
-        Vyberte zemi
+    <nav className="mb-6 flex flex-wrap items-center gap-1.5 font-display text-sm font-semibold text-ink-soft">
+      <button onClick={onWorld} className={cn("rounded-full px-2 py-0.5 hover:bg-country-hover/60", !continent && "text-ink")}>
+        Svět
+      </button>
+      {continent && (
+        <>
+          <ChevronRight className="h-4 w-4 opacity-50" />
+          <button onClick={onContinent} className={cn("rounded-full px-2 py-0.5 hover:bg-country-hover/60", !country && "text-ink")}>
+            {continentName(continent)}
+          </button>
+        </>
+      )}
+      {country && (
+        <>
+          <ChevronRight className="h-4 w-4 opacity-50" />
+          <span className="rounded-full px-2 py-0.5 text-ink">{countryName(country)}</span>
+        </>
+      )}
+    </nav>
+  );
+}
+
+/* ---------------- Výběr světadílu ---------------- */
+
+const CONTINENT_EMOJI: Record<ContinentId, string> = {
+  europe: "🏰",
+  asia: "🏯",
+  africa: "🐫",
+  "north-america": "🦅",
+  "south-america": "🗿",
+  oceania: "🌊",
+};
+
+function ContinentPicker({ onPick }: { onPick: (id: ContinentId) => void }) {
+  const withStories = useMemo(() => continentsWithStories(), []);
+  const list = CONTINENTS.filter((c) => withStories.has(c.id));
+
+  return (
+    <div className="relative text-center">
+      <Curl className="absolute -top-2 left-6 hidden h-8 w-12 text-sun-deep/60 md:block" />
+      <Arcs className="absolute -top-1 right-8 hidden h-8 w-12 text-teal/50 md:block" />
+
+      <span className="highlight-tag text-sm">ZAČNI OBJEVOVAT</span>
+      <h2 className="mt-4 font-display text-4xl font-extrabold text-ink md:text-5xl">
+        Vyber si světadíl
       </h2>
       <p className="mx-auto mt-3 max-w-xl text-ink-soft">
-        Klikněte na zvýrazněnou zemi na mapě výše, nebo vyberte přímo zde. Každá
-        země otevře svou časovou osu a příběhy.
+        Klikni na světadíl na mapě nahoře, nebo rovnou tady. Přiblíží se a
+        rozdělí na jednotlivé státy.
+      </p>
+
+      <div className="mx-auto mt-10 grid max-w-4xl grid-cols-2 gap-4 sm:grid-cols-3">
+        {list.map((c) => {
+          const stats = statsForContinent(c.id);
+          return (
+            <motion.button
+              key={c.id}
+              whileHover={{ y: -4 }}
+              onClick={() => onPick(c.id)}
+              className="group flex flex-col items-center rounded-2xl border-2 border-ink/10 bg-paper-light p-6 text-center shadow-parchment transition-colors hover:border-sun"
+            >
+              <span className="text-4xl transition-transform group-hover:scale-110">
+                {CONTINENT_EMOJI[c.id]}
+              </span>
+              <span className="mt-3 font-display text-xl font-bold text-ink">{c.name}</span>
+              <div className="mt-2 flex gap-1.5">
+                <Badge variant="sun">{stats.countryCount} zemí</Badge>
+                <Badge>{stats.storyCount} příběhů</Badge>
+              </div>
+            </motion.button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Výběr státu ve světadílu ---------------- */
+
+function CountryPicker({
+  continent,
+  onPick,
+  onBack,
+}: {
+  continent: ContinentId;
+  onPick: (a3: string) => void;
+  onBack: () => void;
+}) {
+  const countries = useMemo(() => countriesInContinent(continent), [continent]);
+
+  return (
+    <div className="relative text-center">
+      <Confetti className="absolute -top-2 right-6 hidden h-8 w-14 md:block" />
+      <span className="highlight-tag text-sm">{continentName(continent).toUpperCase()}</span>
+      <h2 className="mt-4 font-display text-4xl font-extrabold text-ink md:text-5xl">
+        Vyber si stát
+      </h2>
+      <p className="mx-auto mt-3 max-w-xl text-ink-soft">
+        Každý stát otevře svou časovou osu a příběhy. Klikni na zvýrazněný stát
+        na mapě, nebo vyber zde.
       </p>
 
       <div className="mx-auto mt-10 grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
         {countries.map((c) => (
-          <button
+          <motion.button
             key={c.a3}
+            whileHover={{ y: -4 }}
             onClick={() => onPick(c.a3)}
-            className={cn(
-              "group flex flex-col items-start rounded-lg border border-stroke/40 bg-paper-light p-4 text-left transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-parchment"
-            )}
+            className="group flex flex-col items-start rounded-2xl border-2 border-ink/10 bg-paper-light p-4 text-left shadow-parchment transition-colors hover:border-sun"
           >
-            <span className="font-display text-lg tracking-wide text-ink group-hover:text-accent">
+            <span className="font-display text-lg font-bold text-ink group-hover:text-sun-deep">
               {c.name}
             </span>
             <span className="mt-1 text-xs text-ink-soft">
               {formatRange(c.yearFrom, c.yearTo)}
             </span>
-            <Badge className="mt-3">
+            <Badge variant="sun" className="mt-3">
               {c.count} {c.count === 1 ? "příběh" : "příběhů"}
             </Badge>
-          </button>
+          </motion.button>
         ))}
+      </div>
+
+      <Button variant="outline" onClick={onBack} className="mt-10">
+        <Globe2 className="h-4 w-4" /> Zpět na světadíly
+      </Button>
+    </div>
+  );
+}
+
+/* ---------------- Detail státu: timeline + příběhy ---------------- */
+
+function CountryDetail({
+  country,
+  activeStory,
+  visibleStories,
+  onSelectStory,
+  onBack,
+}: {
+  country: string;
+  activeStory: Story | null;
+  visibleStories: Story[];
+  onSelectStory: (s: Story | null) => void;
+  onBack: () => void;
+}) {
+  return (
+    <div>
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <span className="flex items-center gap-2 font-serif text-base italic text-ink-soft">
+            <MapPin className="h-4 w-4" /> vybraný stát
+          </span>
+          <h2 className="mt-1 font-display text-4xl font-extrabold text-ink">
+            {countryName(country)}
+          </h2>
+        </div>
+        <Button variant="outline" onClick={onBack}>
+          <Compass className="h-4 w-4" /> Zpět na výběr států
+        </Button>
+      </div>
+
+      <div className="card-parchment mb-12 px-6 py-10 md:px-12">
+        <Timeline
+          countryCode={country}
+          activeStoryId={activeStory?.id ?? null}
+          onSelect={onSelectStory}
+        />
+      </div>
+
+      <div id="pribehy" className="scroll-mt-16">
+        <div className="rule-ornament mb-8">
+          <ScrollText className="h-5 w-5" />
+        </div>
+        <div className="mb-6 flex items-baseline justify-between">
+          <h3 className="font-display text-2xl font-bold text-ink">
+            {activeStory
+              ? `Příběh · ${formatRange(activeStory.yearFrom, activeStory.yearTo)}`
+              : "Příběhy tohoto státu"}
+          </h3>
+          <span className="font-serif text-base italic text-ink-soft">
+            {visibleStories.length}{" "}
+            {visibleStories.length === 1 ? "příběh" : "příběhů"}
+          </span>
+        </div>
+        <StoryGrid stories={visibleStories} />
       </div>
     </div>
   );

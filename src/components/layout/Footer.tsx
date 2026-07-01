@@ -21,20 +21,20 @@ export function Footer() {
           <div>
             <h5 className="font-display text-sm tracking-wide text-ink">Objevovat</h5>
             <ul className="mt-3 space-y-2 text-sm text-ink-soft">
-              <li><Link className="hover:text-accent" to="/">Mapa světa</Link></li>
-              <li><Link className="hover:text-accent" to="/">Časová osa</Link></li>
-              <li><Link className="hover:text-accent" to="/">Všechny příběhy</Link></li>
+              <li><Link className="hover:text-sun-deep" to="/">Mapa světa</Link></li>
+              <li><Link className="hover:text-sun-deep" to="/">Časová osa</Link></li>
+              <li><Link className="hover:text-sun-deep" to="/">Všechny příběhy</Link></li>
             </ul>
           </div>
           <div>
             <h5 className="font-display text-sm tracking-wide text-ink">Projekt</h5>
             <ul className="mt-3 space-y-2 text-sm text-ink-soft">
-              <li><Link className="hover:text-accent" to="/o-projektu">O projektu</Link></li>
+              <li><Link className="hover:text-sun-deep" to="/o-projektu">O projektu</Link></li>
               <li><span className="opacity-70">Demo — mock data</span></li>
             </ul>
           </div>
         </div>
-        <p className="mt-10 text-center font-script text-sm italic text-ink-soft">
+        <p className="mt-10 text-center font-serif italic text-sm italic text-ink-soft">
           © {new Date().getFullYear()} Příběhy historie · vytvořeno s úctou k minulosti
         </p>
       </div>

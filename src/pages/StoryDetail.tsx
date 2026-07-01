@@ -38,7 +38,7 @@ export default function StoryDetail() {
     <article className="mx-auto max-w-3xl px-4 py-12 md:px-6">
       <Link
         to="/"
-        className="inline-flex items-center gap-1.5 font-display text-sm tracking-wide text-ink-soft transition-colors hover:text-accent"
+        className="inline-flex items-center gap-1.5 font-display text-sm tracking-wide text-ink-soft transition-colors hover:text-sun-deep"
       >
         <ArrowLeft className="h-4 w-4" /> Zpět na mapu
       </Link>
@@ -61,7 +61,7 @@ export default function StoryDetail() {
         <h1 className="text-balance font-display text-4xl leading-tight tracking-wide text-ink md:text-5xl">
           {story.title}
         </h1>
-        <p className="mt-4 font-script text-xl italic text-ink-soft">
+        <p className="mt-4 font-serif italic text-xl italic text-ink-soft">
           {story.excerpt}
         </p>
       </motion.header>
@@ -103,9 +103,9 @@ export default function StoryDetail() {
               <li key={s.id}>
                 <Link
                   to={`/pribeh/${s.slug}`}
-                  className="group flex items-center justify-between rounded-lg border border-stroke/40 bg-paper-light px-4 py-3 transition-colors hover:border-accent"
+                  className="group flex items-center justify-between rounded-lg border border-stroke/40 bg-paper-light px-4 py-3 transition-colors hover:border-sun"
                 >
-                  <span className="font-display tracking-wide text-ink group-hover:text-accent">
+                  <span className="font-display tracking-wide text-ink group-hover:text-sun-deep">
                     {s.title}
                   </span>
                   <span className="text-sm text-ink-soft">

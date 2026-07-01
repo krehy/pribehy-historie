@@ -15,7 +15,7 @@ export default function About() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-16 md:px-6">
       <div className="text-center">
-        <span className="mx-auto grid h-16 w-16 place-items-center rounded-full border-2 border-stroke/50 bg-paper-light text-accent shadow-parchment">
+        <span className="mx-auto grid h-16 w-16 place-items-center rounded-full border-2 border-stroke/50 bg-paper-light text-sun-deep shadow-parchment">
           <Compass className="h-8 w-8" />
         </span>
         <h1 className="mt-6 font-display text-4xl tracking-wide text-ink">
@@ -32,7 +32,7 @@ export default function About() {
       <div className="mt-12 grid gap-5 sm:grid-cols-3">
         {FEATURES.map((f) => (
           <div key={f.title} className="card-parchment p-5 text-center">
-            <f.icon className="mx-auto h-7 w-7 text-accent" />
+            <f.icon className="mx-auto h-7 w-7 text-sun-deep" />
             <h3 className="mt-3 font-display text-lg tracking-wide text-ink">
               {f.title}
             </h3>
@@ -43,13 +43,13 @@ export default function About() {
 
       <div className="mt-12 flex items-center justify-center gap-8 text-center">
         <div>
-          <div className="font-display text-4xl text-accent">{STORIES.length}</div>
-          <div className="font-script text-sm italic text-ink-soft">příběhů</div>
+          <div className="font-display text-4xl text-sun-deep">{STORIES.length}</div>
+          <div className="font-serif italic text-sm italic text-ink-soft">příběhů</div>
         </div>
         <div className="h-10 w-px bg-stroke/40" />
         <div>
-          <div className="font-display text-4xl text-accent">{countries.length}</div>
-          <div className="font-script text-sm italic text-ink-soft">zemí</div>
+          <div className="font-display text-4xl text-sun-deep">{countries.length}</div>
+          <div className="font-serif italic text-sm italic text-ink-soft">zemí</div>
         </div>
       </div>
 

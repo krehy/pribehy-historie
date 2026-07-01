@@ -38,14 +38,12 @@ export const StoryCard = forwardRef<HTMLDivElement, StoryCardProps>(
             </Badge>
           </span>
           <span className="absolute right-3 top-3">
-            <Badge className="bg-accent/90 text-paper-light shadow-sm">
-              {formatRange(story.yearFrom, story.yearTo)}
-            </Badge>
+            <Badge variant="sun">{formatRange(story.yearFrom, story.yearTo)}</Badge>
           </span>
         </div>
 
         <div className="p-5">
-          <h3 className="font-display text-lg leading-snug tracking-wide text-ink transition-colors group-hover:text-accent">
+          <h3 className="font-display text-lg font-bold leading-snug text-ink transition-colors group-hover:text-sun-deep">
             {story.title}
           </h3>
           <p className="mt-2 line-clamp-3 text-sm text-ink-soft">{story.excerpt}</p>
@@ -58,7 +56,7 @@ export const StoryCard = forwardRef<HTMLDivElement, StoryCardProps>(
             ))}
           </div>
 
-          <span className="mt-4 inline-flex items-center gap-1 font-display text-sm tracking-wide text-accent">
+          <span className="mt-4 inline-flex items-center gap-1 font-display text-sm font-bold text-sun-deep">
             Číst příběh
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
           </span>

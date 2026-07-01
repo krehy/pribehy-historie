@@ -225,4 +225,46 @@ export const mapTheme: MapTheme = {
   },
 };
 
+/**
+ * Styl dvojúrovňové navigace (světadíl → stát).
+ * Na úrovni „svět" jsou státy obarvené podle světadílu a vnitřní hranice
+ * jsou potlačené (kontinenty působí jako celky). Po výběru světadílu se
+ * jeho státy „rozdělí" (viditelné hranice) a ostatní se ztlumí.
+ */
+export type ContinentKey =
+  | "europe"
+  | "asia"
+  | "africa"
+  | "north-america"
+  | "south-america"
+  | "oceania";
+
+export const continentTheme = {
+  /** Jemně odlišené sépiové tóny — noblesní, ne pestrobarevné */
+  tints: {
+    europe: "#e9d8ab",
+    asia: "#ecdcae",
+    africa: "#e6d3a0",
+    "north-america": "#ead9a6",
+    "south-america": "#e4d29d",
+    oceania: "#efe0b4",
+  } as Record<ContinentKey, string>,
+
+  /** Zvýraznění celého světadílu při hoveru na úrovni světa */
+  hoverFill: "#e6c97e",
+  hoverStroke: palette.ink,
+
+  /** Vybraný světadíl (na úrovni států) */
+  selectedTint: "#efe0b8",
+
+  /** Stát mimo vybraný světadíl — ztlumený podklad */
+  mutedFill: "#f0e7cf",
+  mutedOpacity: 0.5,
+
+  /** Vnitřní hranice na úrovni světa (potlačené = kontinenty jako celky) */
+  worldStrokeOpacity: 0.15,
+  /** Vnitřní hranice na úrovni světadílu (státy se „rozdělí") */
+  continentStrokeOpacity: 1,
+};
+
 export default mapTheme;

@@ -5,6 +5,7 @@
 
 import { STORIES, type Story } from "@/data/stories";
 import { countryName } from "@/data/countries";
+import { continentOfA3, type ContinentId } from "@/data/continents";
 
 /** Formátování roku: záporné = př. n. l. */
 export function formatYear(year: number): string {
@@ -54,6 +55,50 @@ export function countriesWithStories(stories: Story[] = STORIES): CountryWithSto
 /** Množina A3 kódů států s příběhy — rychlý lookup pro mapu. */
 export function countryCodesWithStories(stories: Story[] = STORIES): Set<string> {
   return new Set(stories.map((s) => s.countryCode));
+}
+
+/** Světadíly, které obsahují alespoň jeden příběh (počet zemí a příběhů). */
+export interface ContinentWithStories {
+  id: ContinentId;
+  countryCount: number;
+  storyCount: number;
+}
+
+export function continentsWithStories(
+  stories: Story[] = STORIES
+): Set<ContinentId> {
+  const set = new Set<ContinentId>();
+  for (const s of stories) {
+    const c = continentOfA3(s.countryCode);
+    if (c) set.add(c);
+  }
+  return set;
+}
+
+/** Statistika příběhů pro jeden světadíl. */
+export function statsForContinent(
+  continent: ContinentId,
+  stories: Story[] = STORIES
+): ContinentWithStories {
+  const countries = new Set<string>();
+  let storyCount = 0;
+  for (const s of stories) {
+    if (continentOfA3(s.countryCode) === continent) {
+      countries.add(s.countryCode);
+      storyCount += 1;
+    }
+  }
+  return { id: continent, countryCount: countries.size, storyCount };
+}
+
+/** Země s příběhy patřící do daného světadílu. */
+export function countriesInContinent(
+  continent: ContinentId,
+  stories: Story[] = STORIES
+): CountryWithStories[] {
+  return countriesWithStories(stories).filter(
+    (c) => continentOfA3(c.a3) === continent
+  );
 }
 
 /** Příběhy jednoho státu, seřazené chronologicky. */

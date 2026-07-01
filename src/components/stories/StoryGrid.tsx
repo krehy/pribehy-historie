@@ -8,7 +8,7 @@ export function StoryGrid({ stories }: { stories: Story[] }) {
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="py-16 text-center font-script text-lg italic text-ink-soft"
+        className="py-16 text-center font-serif italic text-lg italic text-ink-soft"
       >
         Pro zvolené období zde zatím žádné příběhy nejsou.
       </motion.p>

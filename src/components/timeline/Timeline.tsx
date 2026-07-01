@@ -19,13 +19,15 @@ export function Timeline({ countryCode, activeStoryId, onSelect }: TimelineProps
   const { min, max, segments } = timelineForCountry(countryCode);
   if (segments.length === 0) return null;
 
-  const { accent, stroke, ink } = mapTheme.palette;
+  const { stroke, ink } = mapTheme.palette;
+  // Hořčičková žlutá — hlavní akcent značky (sladěno s IG grafikou)
+  const sun = "#f4c430";
 
   return (
     <div className="w-full">
       <div className="mb-6 flex items-baseline justify-between font-display text-sm tracking-wide text-ink-soft">
         <span>{formatYear(min)}</span>
-        <span className="font-script text-base italic">osa dějin</span>
+        <span className="font-serif italic text-base italic">osa dějin</span>
         <span>{formatYear(max)}</span>
       </div>
 
@@ -62,11 +64,11 @@ export function Timeline({ countryCode, activeStoryId, onSelect }: TimelineProps
               <span
                 className={cn(
                   "block h-4 w-4 rounded-full border-2 transition-all group-hover:scale-125",
-                  active ? "shadow-[0_0_0_6px_rgba(201,162,75,0.2)]" : ""
+                  active ? "shadow-[0_0_0_6px_rgba(244,196,48,0.28)]" : ""
                 )}
                 style={{
-                  background: active ? accent : "#fdfaf0",
-                  borderColor: active ? ink : accent,
+                  background: active ? sun : "#fdfaf0",
+                  borderColor: active ? ink : sun,
                 }}
               />
               {/* Rok pod bodem */}
@@ -91,7 +93,7 @@ export function Timeline({ countryCode, activeStoryId, onSelect }: TimelineProps
         <div className="mt-4 text-center">
           <button
             onClick={() => onSelect(null)}
-            className="font-script text-sm italic text-accent underline-offset-4 hover:underline"
+            className="font-display text-sm font-semibold text-sun-deep underline-offset-4 hover:underline"
           >
             zrušit filtr období — zobrazit všechny příběhy země
           </button>

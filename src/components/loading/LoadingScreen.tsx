@@ -56,21 +56,21 @@ export function LoadingScreen({ onDone }: LoadingScreenProps) {
           className="relative mb-8"
         >
           <span className="absolute inset-0 -m-3 rounded-full border border-dashed border-stroke/40 motion-safe:animate-compass-spin" />
-          <span className="grid h-20 w-20 place-items-center rounded-full border-2 border-stroke/50 bg-paper-light text-accent shadow-parchment">
+          <span className="grid h-20 w-20 place-items-center rounded-full border-4 border-ink/10 bg-sun text-ink shadow-parchment">
             <Compass className="h-9 w-9" />
           </span>
         </motion.div>
 
-        <h1 className="font-display text-2xl tracking-wide text-ink">
+        <h1 className="font-display text-2xl font-extrabold text-ink">
           Příběhy historie
         </h1>
-        <p className="mt-1 font-script text-base italic text-ink-soft">
+        <p className="mt-1 font-serif text-base italic text-ink-soft">
           interaktivní atlas dějin
         </p>
 
-        <div className="mt-8 h-1.5 w-full overflow-hidden rounded-full bg-country/70">
+        <div className="mt-8 h-2.5 w-full overflow-hidden rounded-full bg-country/70">
           <motion.div
-            className="h-full rounded-full bg-accent"
+            className="h-full rounded-full bg-sun"
             style={{ width: `${progress}%` }}
           />
         </div>
