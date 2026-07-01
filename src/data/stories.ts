@@ -3,6 +3,48 @@
  * odvozují z tohoto pole. Roky jsou ve formátu: záporné = př. n. l.
  */
 
+/**
+ * Beat velkého (kinematického) příběhu — sekvence, kterou uživatel projde.
+ * - scene: médium (obrázek/video, příp. greenscreen k vyklíčování) + text
+ * - flip:  otočná kartička „věděli jste?" (přední → zadní strana)
+ * - quiz:  otázka s výběrem; na konci příběhu z nich vznikne dobrovolný kvíz
+ */
+/** Nálada beatu — řídí barevný nádech, částice a vinětaci scény. */
+export type BeatMood = "dawn" | "mystic" | "day" | "night";
+
+/** Úvodní „hero" konkrétního příběhu — poster + video na pozadí, spustí se přes Play. */
+export interface StoryHero {
+  media: string;
+  mediaType?: "image" | "video";
+  /** Statický poster před kliknutím na Play (jinak se vezme médium). */
+  poster?: string;
+  /** Krátký eyebrow nad nadpisem (např. „Pražská legenda"). */
+  eyebrow?: string;
+}
+
+export type StoryBeat =
+  | {
+      kind: "scene";
+      media: string;
+      mediaType?: "image" | "video";
+      /** Postava na greenscreenu k vyklíčování (chroma key) — jako „kdo jsme". */
+      chroma?: boolean;
+      title?: string;
+      text?: string;
+      credit?: string;
+      mood?: BeatMood;
+    }
+  | { kind: "flip"; front: string; back: string; mood?: BeatMood }
+  | { kind: "quiz"; question: string; options: string[]; answer: number; explain?: string }
+  | {
+      /** Přišpendlené video scrubované scrollem; přes něj postupně naskakují titulky. */
+      kind: "scrub";
+      media: string;
+      credit?: string;
+      captions: { at: number; title?: string; text: string }[];
+      mood?: BeatMood;
+    };
+
 export interface Story {
   id: string;
   title: string;
@@ -17,6 +59,16 @@ export interface Story {
   coverImage: string;
   body: string;
   tags: string[];
+  /** Cesta (relativní k BASE_URL) k obrázku/videu na pozadí kinematické osy. */
+  media?: string;
+  /** Typ média — obrázek (default) nebo video (mp4). */
+  mediaType?: "image" | "video";
+  /** Atribuce zdroje média (public domain / autor). */
+  mediaCredit?: string;
+  /** Beaty velkého (kinematického) příběhu v detailu — scény, flip kartičky, kvíz. */
+  beats?: StoryBeat[];
+  /** Úvodní hero konkrétního příběhu (poster + Play + video na pozadí). */
+  hero?: StoryHero;
 }
 
 /** Placeholder obrázek — pergamenový gradient s iniciálou (data URI, žádné API) */
@@ -51,6 +103,8 @@ export const STORIES: Story[] = [
     coverImage: cover("EGY", "𓉐"),
     body: "Velká pyramida v Gíze byla dokončena kolem roku 2540 př. n. l. jako hrobka faraona Chufua (Cheopse). Původně měřila 146,6 metru a byla obložena hlazeným vápencem, který se na slunci třpytil. Na její stavbě se podílely desítky tisíc dělníků — nikoli otroků, jak se dlouho tradovalo, ale sezónních pracovníků a řemeslníků. Přesnost, s jakou byly kamenné bloky uloženy, dodnes udivuje inženýry.",
     tags: ["starověk", "architektura", "faraoni"],
+    media: "stories/egy-pyramid.jpg",
+    mediaCredit: "David Roberts, „Pyramidy v Gíze“ (1839) · public domain",
   },
   {
     id: "2",
@@ -207,6 +261,8 @@ export const STORIES: Story[] = [
     coverImage: cover("EGZ", "𓁟"),
     body: "Kleopatra VII. usedla na egyptský trůn roku 51 př. n. l. jako poslední panovnice ptolemaiovské dynastie. Ovládala několik jazyků, byla vzdělaná v matematice i filosofii a obratně manévrovala v římské politice — spojenectví (a milostné vztahy) s Juliem Caesarem a Marcem Antoniem měly udržet nezávislost Egypta. Po porážce u Actia a Antoniově smrti si roku 30 př. n. l. vzala život. Egypt se stal římskou provincií a tři tisíce let vlády faraonů skončily.",
     tags: ["starověk", "panovnice", "Řím"],
+    media: "stories/egy-cleopatra.jpg",
+    mediaCredit: "Reginald Arthur, „Smrt Kleopatry“ (1892) · public domain",
   },
   {
     id: "14",
@@ -220,6 +276,8 @@ export const STORIES: Story[] = [
     coverImage: cover("EGY2", "𓋹"),
     body: "V listopadu 1922 objevil britský archeolog Howard Carter v Údolí králů vstup do hrobky faraona Tutanchamona. Na rozdíl od většiny ostatních hrobek nebyla vykradena a obsahovala tisíce předmětů včetně proslulé zlaté pohřební masky. Objev se stal světovou senzací, odstartoval vlnu zájmu o starověký Egypt a dodnes patří k nejvýznamnějším archeologickým nálezům v dějinách.",
     tags: ["archeologie", "20. století", "objevy"],
+    media: "stories/egy-tutankhamun.jpg",
+    mediaCredit: "Harry Burton, hrobka Tutanchamona (1922) · public domain",
   },
   {
     id: "15",
@@ -233,6 +291,19 @@ export const STORIES: Story[] = [
     coverImage: cover("GRC2", "Α"),
     body: "Alexandr III. Makedonský nastoupil na trůn roku 336 př. n. l. a během jediné dekády porazil perskou říši a dobyl území od Egypta po hranice Indie. Jeho tažení rozšířila řeckou kulturu, jazyk a umění po celém známém světě a zahájila tzv. helénistické období. Zemřel roku 323 př. n. l. v Babylonu ve věku pouhých 32 let; jeho říše se poté rozpadla mezi jeho vojevůdce.",
     tags: ["antika", "vojevůdci", "říše"],
+  },
+  {
+    id: "18",
+    title: "Vylodění První flotily v Sydney",
+    slug: "prvni-flotila-sydney",
+    countryCode: "AUS",
+    yearFrom: 1788,
+    yearTo: 1788,
+    excerpt:
+      "Jedenáct lodí s odsouzenci zakotvilo v zálivu Port Jackson a založilo první evropskou osadu na australském kontinentu.",
+    coverImage: cover("AUS", "⚓"),
+    body: "26. ledna 1788 přistála v zálivu Port Jackson takzvaná První flotila — jedenáct britských lodí pod velením kapitána Arthura Phillipa, které z Anglie připluly s více než tisícem lidí, převážně trestanců. Založená trestanecká kolonie se stala základem dnešního Sydney a počátkem evropského osídlení Austrálie. Pro původní obyvatele, Aboridžince žijící na kontinentu desítky tisíc let, však znamenal příchod Evropanů začátek vytlačování, nemocí a ztráty půdy. Datum 26. ledna se dodnes slaví jako Australia Day — a zároveň je předmětem sporů jako „Den invaze“.",
+    tags: ["novověk", "kolonizace", "objevné plavby"],
   },
   {
     id: "16",
@@ -259,6 +330,106 @@ export const STORIES: Story[] = [
     coverImage: cover("ITA3", "Ω"),
     body: "Roku 476 n. l. sesadil germánský vojevůdce Odoaker posledního západořímského císaře Romula Augustula. Tato událost je tradičně považována za symbolický konec Západořímské říše i celého starověku. Řím oslabovaly už desítky let vnitřní krize, ekonomický úpadek a nájezdy. Na troskách impéria vznikaly germánské říše a Evropa vstoupila do období raného středověku.",
     tags: ["Řím", "středověk", "zánik"],
+  },
+  {
+    id: "19",
+    title: "Stavba Karlova mostu",
+    slug: "stavba-karlova-mostu",
+    countryCode: "CZE",
+    yearFrom: 1357,
+    yearTo: 1402,
+    excerpt:
+      "Karel IV. položil základní kámen v magický palindromický okamžik — a legenda praví, že se do malty přidávala vejce z celé země.",
+    coverImage: cover("CZE2", "🜋"),
+    body: "Základní kámen Karlova mostu položil císař Karel IV. — podle pověsti — 9. července 1357 přesně v 5 hodin a 31 minut ráno. Tento okamžik tvoří vzestupnou a sestupnou řadu lichých čísel 1‑3‑5‑7‑9‑7‑5‑3‑1 (1357, 9. den, 7. měsíc, 5:31). Vzdělaný a pověrčivý panovník prý dbal na astrologii a nechal si termín vypočítat, aby most stál na věky. A stojí — na rozdíl od svého předchůdce, Juditina mostu, který vzala voda. K trvanlivosti měla podle nejslavnější české stavební legendy pomoci i malta: do vápna se prý přidávala vejce, tvaroh a víno, aby zdivo lépe drželo. Města po celé zemi posílala do Prahy vozy vajec; z Velvar prý dorazila vejce natvrdo uvařená, aby se cestou nerozbila. Most nese jméno Karla IV. až od 19. století — po staletí se mu říkalo prostě Kamenný nebo Pražský most.",
+    tags: ["středověk", "architektura", "Karel IV.", "legendy"],
+    media: "stories/cze-bridge-founding.mp4",
+    mediaType: "video",
+    mediaCredit: "AI ilustrace (storybook) · Příběhy historie",
+    // Poznámka: hero.media je zatím placeholder (founding). Po dodání swap na
+    // stories/cze-bridge-hero.mp4.
+    hero: {
+      media: "stories/cze-bridge-founding.mp4",
+      mediaType: "video",
+      eyebrow: "Pražská legenda",
+    },
+    beats: [
+      {
+        kind: "scene",
+        media: "stories/cze-charles-iv-green.jpg",
+        chroma: true,
+        title: "Karel IV.",
+        text: "Učený a pověrčivý císař a král, který si termín stavby nechal vypočítat podle hvězd. Za jeho vlády se z Prahy stalo srdce říše.",
+        mood: "mystic",
+      },
+      {
+        kind: "scene",
+        media: "stories/cze-bridge-founding.mp4",
+        mediaType: "video",
+        title: "Magický okamžik",
+        text: "9. července 1357 v 5 hodin a 31 minut ráno položil Karel IV. základní kámen nového kamenného mostu přes Vltavu.",
+        credit: "AI ilustrace (storybook)",
+        mood: "dawn",
+      },
+      {
+        kind: "flip",
+        front: "Proč zrovna 9. 7. 1357 v 5:31?",
+        back: "Čísla tvoří palindrom 1‑3‑5‑7‑9‑7‑5‑3‑1 — vzestupná a sestupná řada lichých čísel. Karel věřil, že takový magický okamžik zajistí mostu věčnost.",
+        mood: "mystic",
+      },
+      {
+        kind: "scrub",
+        media: "stories/cze-bridge-eggs.mp4",
+        credit: "AI ilustrace (storybook)",
+        mood: "day",
+        captions: [
+          {
+            at: 0,
+            title: "Vejce v maltě",
+            text: "Aby zdivo lépe drželo, přidávala se prý do malty vejce, tvaroh a víno.",
+          },
+          {
+            at: 0.4,
+            title: "Vozy z celé země",
+            text: "Města po celé zemi posílala do Prahy celé vozy vajec — kámen po kameni rostl most nad Vltavou.",
+          },
+          {
+            at: 0.75,
+            title: "Velvarská léčka",
+            text: "Z Velvar prý dorazila vejce natvrdo uvařená — aby se cestou do Prahy nerozbila. 🥚",
+          },
+        ],
+      },
+      {
+        kind: "scene",
+        media: "stories/cze-bridge-workers.jpg",
+        title: "Kamenný most roste",
+        text: "Dřevěné jeřáby zvedají pískovcové kvádry nad Vltavu pod Pražským hradem. Stavba trvala desítky let a most stojí dodnes.",
+        credit: "AI ilustrace (storybook)",
+        mood: "day",
+      },
+      {
+        kind: "quiz",
+        question: "V kolik hodin byl podle pověsti položen základní kámen?",
+        options: ["V 5:31 ráno", "V poledne", "O půlnoci", "Za soumraku"],
+        answer: 0,
+        explain: "9. 7. 1357 v 5:31 — čísla tvoří palindrom 1‑3‑5‑7‑9‑7‑5‑3‑1.",
+      },
+      {
+        kind: "quiz",
+        question: "Co se prý přidávalo do malty, aby most déle vydržel?",
+        options: ["Vejce", "Ryzí zlato", "Med", "Mořská sůl"],
+        answer: 0,
+        explain: "Vejce (a podle pověsti i tvaroh a víno) měla maltu zpevnit.",
+      },
+      {
+        kind: "quiz",
+        question: "Jak se mostu říkalo před 19. stoletím?",
+        options: ["Kamenný / Pražský most", "Karlův most", "Juditin most", "Zlatý most"],
+        answer: 0,
+        explain: "Jméno „Karlův most“ se ujalo až v 19. století; předtím to byl Kamenný most.",
+      },
+    ],
   },
 ];
 

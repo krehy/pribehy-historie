@@ -7,10 +7,16 @@ import { formatRange } from "@/lib/history";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CompassRose } from "@/components/map/CompassRose";
+import { StoryExperience } from "@/components/story/StoryExperience";
 
 export default function StoryDetail() {
   const { slug } = useParams();
   const story = STORIES.find((s) => s.slug === slug);
+
+  // Velký (kinematický) příběh s beaty → celoobrazovkový zážitek.
+  if (story?.beats && story.beats.length > 0) {
+    return <StoryExperience story={story} />;
+  }
 
   if (!story) {
     return (
