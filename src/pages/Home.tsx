@@ -1,28 +1,38 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Globe2, MapPin, ScrollText, ChevronRight, ChevronLeft, ArrowLeft } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { LoadingScreen } from "@/components/loading/LoadingScreen";
 import { Hero } from "@/components/hero/Hero";
 import { WorldMap } from "@/components/map/WorldMap";
-import { Timeline } from "@/components/timeline/Timeline";
-import { StoryGrid } from "@/components/stories/StoryGrid";
-import { Button } from "@/components/ui/button";
-import { formatRange, storiesForCountry } from "@/lib/history";
+import { StoryTimeline } from "@/components/timeline/StoryTimeline";
+import { storiesForCountry } from "@/lib/history";
 import { countryName } from "@/data/countries";
 import { continentName, continentOfA3, type ContinentId } from "@/data/continents";
 import type { Story } from "@/data/stories";
 
 type Phase = "loading" | "hero" | "map";
+type Focus = "map" | "timeline";
 
 const EASE = [0.76, 0, 0.24, 1] as const;
+
+const canHover =
+  typeof window !== "undefined" &&
+  window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 
 export default function Home() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [continent, setContinent] = useState<ContinentId | null>(null);
   const [country, setCountry] = useState<string | null>(null);
-  const [activeStory, setActiveStory] = useState<Story | null>(null);
-  const [showStories, setShowStories] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(false);
+  // Kam se právě dívá uživatel (desktop hover) — jemné zvýraznění mapa ↔ osa.
+  const [focus, setFocus] = useState<Focus>("timeline");
   const revealTimer = useRef<number>(0);
+  const timelineOpenRef = useRef(false);
+
+  useEffect(() => {
+    timelineOpenRef.current = timelineOpen;
+    if (timelineOpen) setFocus("timeline"); // po otevření zvýrazni osu
+  }, [timelineOpen]);
 
   useEffect(() => () => clearTimeout(revealTimer.current), []);
 
@@ -30,36 +40,38 @@ export default function Home() {
     clearTimeout(revealTimer.current);
     setContinent(id);
     setCountry(null);
-    setActiveStory(null);
-    setShowStories(false);
+    setTimelineOpen(false);
   }, []);
 
   const handleSelectCountry = useCallback((a3: string | null) => {
     clearTimeout(revealTimer.current);
     setCountry(a3);
-    setActiveStory(null);
     if (a3) {
       const c = continentOfA3(a3);
       if (c) setContinent(c);
-      // Nejdřív se mapa přiblíží na stát, teprve pak odjede a odkryje příběhy.
-      revealTimer.current = window.setTimeout(() => setShowStories(true), 1250);
+      // Osa už otevřená → jen přepni stát. Jinak ji po přiblížení vysuň.
+      if (timelineOpenRef.current) {
+        setFocus("timeline");
+        return;
+      }
+      revealTimer.current = window.setTimeout(() => setTimelineOpen(true), 1150);
     } else {
-      setShowStories(false);
+      setTimelineOpen(false);
     }
   }, []);
 
-  const closeStories = useCallback(() => {
+  const closeTimeline = useCallback(() => {
     clearTimeout(revealTimer.current);
-    setShowStories(false);
-    setActiveStory(null);
+    setTimelineOpen(false);
     setCountry(null);
   }, []);
 
-  const visibleStories: Story[] = useMemo(() => {
-    if (!country) return [];
-    if (activeStory) return [activeStory];
-    return storiesForCountry(country);
-  }, [country, activeStory]);
+  const timelineStories: Story[] = useMemo(
+    () => (country ? storiesForCountry(country) : []),
+    [country]
+  );
+
+  const mapFocused = !timelineOpen || focus === "map";
 
   return (
     <section className="relative h-[calc(100dvh-4rem)] w-full overflow-hidden bg-paper">
@@ -67,17 +79,17 @@ export default function Home() {
         {phase === "loading" && <LoadingScreen onDone={() => setPhase("hero")} />}
       </AnimatePresence>
 
-      {/* ---------- VRSTVA MAPY ---------- */}
+      {/* ---------- VRSTVA MAPY (zůstává viditelná i pod osou) ---------- */}
       {phase !== "loading" && (
         <motion.div
           className="absolute inset-0"
+          onMouseEnter={() => canHover && timelineOpen && setFocus("map")}
           animate={{
-            y: showStories ? "-14%" : "0%",
-            scale: showStories ? 0.96 : 1,
-            opacity: showStories ? 0 : 1,
+            y: timelineOpen ? "-14%" : "0%",
+            scale: timelineOpen ? 0.93 : 1,
+            opacity: mapFocused ? 1 : 0.96, // nenápadné ztlumení, když je fokus na ose
           }}
-          transition={{ duration: 0.7, ease: EASE }}
-          style={{ pointerEvents: showStories ? "none" : "auto" }}
+          transition={{ duration: 0.5, ease: EASE }}
         >
           <WorldMap
             selectedContinent={continent}
@@ -86,9 +98,9 @@ export default function Home() {
             onSelectCountry={handleSelectCountry}
           />
 
-          {/* Minimální ovládání — výběr probíhá klikáním do mapy */}
-          <AnimatePresence mode="wait">
-            {!continent ? (
+          {/* Nápověda na úrovni světa */}
+          <AnimatePresence>
+            {!timelineOpen && !continent && (
               <motion.div
                 key="hint-world"
                 initial={{ opacity: 0, y: 20 }}
@@ -101,51 +113,65 @@ export default function Home() {
                   Klikni na světadíl 🗺️
                 </span>
               </motion.div>
-            ) : (
-              <motion.div
-                key="ctrl-continent"
-                initial={{ opacity: 0, y: -12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.35 }}
-                className="absolute inset-x-0 top-4 flex flex-col items-center gap-2 px-4"
-              >
-                <div className="flex w-full max-w-2xl items-center justify-between gap-2">
-                  <button
-                    onClick={() => handleSelectContinent(null)}
-                    className="pointer-events-auto inline-flex items-center gap-1 rounded-full border-2 border-ink/10 bg-paper-light/90 px-4 py-2 font-display text-sm font-bold text-ink shadow-parchment backdrop-blur-sm transition-colors hover:bg-country-hover"
-                  >
-                    <ChevronLeft className="h-4 w-4" /> Světadíly
-                  </button>
-                  <span className="rounded-full bg-sun px-3 py-1.5 font-display text-sm font-bold text-ink shadow-sticker">
-                    {continentName(continent)} · klikni na stát
-                  </span>
-                </div>
-              </motion.div>
             )}
           </AnimatePresence>
         </motion.div>
       )}
 
-      {/* ---------- VRSTVA PŘÍBĚHŮ (fullscreen, vyjede zdola) ---------- */}
+      {/* ---------- OVLÁDÁNÍ (mimo transform mapy — drží nahoře) ---------- */}
       <AnimatePresence>
-        {showStories && country && (
+        {phase === "map" && continent && (
           <motion.div
-            key="stories"
-            className="fixed inset-0 z-50 overflow-y-auto bg-paper"
+            key="controls"
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.35 }}
+            className="absolute inset-x-0 top-4 z-30 flex justify-center px-4"
+          >
+            <div className="flex w-full max-w-2xl items-center justify-between gap-2">
+              <button
+                onClick={() => (timelineOpen ? closeTimeline() : handleSelectContinent(null))}
+                className="inline-flex items-center gap-1 rounded-full border-2 border-ink/10 bg-paper-light/90 px-4 py-2 font-display text-sm font-bold text-ink shadow-parchment backdrop-blur-sm transition-colors hover:bg-country-hover"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                {timelineOpen ? "Zpět" : "Světadíly"}
+              </button>
+              <span className="rounded-full bg-sun px-3 py-1.5 font-display text-sm font-bold text-ink shadow-sticker">
+                {continentName(continent)} · klikni {timelineOpen ? "na jiný stát" : "na stát"}
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ---------- KINEMATICKÁ ČASOVÁ OSA (bottom sheet) ---------- */}
+      <AnimatePresence>
+        {timelineOpen && country && timelineStories.length > 0 && (
+          <motion.div
+            key="timeline"
+            className="absolute inset-x-0 bottom-0 z-40 h-[48vh]"
             initial={{ y: "100%" }}
             animate={{ y: "0%" }}
             exit={{ y: "100%" }}
             transition={{ duration: 0.7, ease: EASE }}
+            onMouseEnter={() => canHover && setFocus("timeline")}
           >
-            <StoriesView
-              continent={continent}
-              country={country}
-              activeStory={activeStory}
-              visibleStories={visibleStories}
-              onSelectStory={setActiveStory}
-              onBack={closeStories}
-            />
+            {/* Vnitřní vrstva pro jemný hover-focus (lehce zajede + ztlumí) */}
+            <motion.div
+              className="h-full overflow-hidden rounded-t-3xl shadow-parchment-lg"
+              animate={{
+                y: focus === "map" ? "6%" : "0%",
+                opacity: focus === "map" ? 0.8 : 1,
+              }}
+              transition={{ duration: 0.4, ease: EASE }}
+            >
+              <StoryTimeline
+                countryName={countryName(country)}
+                stories={timelineStories}
+                onClose={closeTimeline}
+              />
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -165,90 +191,5 @@ export default function Home() {
         )}
       </AnimatePresence>
     </section>
-  );
-}
-
-/* ---------------- Vrstva příběhů ---------------- */
-
-function StoriesView({
-  continent,
-  country,
-  activeStory,
-  visibleStories,
-  onSelectStory,
-  onBack,
-}: {
-  continent: ContinentId | null;
-  country: string;
-  activeStory: Story | null;
-  visibleStories: Story[];
-  onSelectStory: (s: Story | null) => void;
-  onBack: () => void;
-}) {
-  return (
-    <div className="min-h-full">
-      {/* Lepivá lišta: zpět na mapu + drobečková navigace */}
-      <div className="sticky top-0 z-10 border-b-2 border-ink/5 bg-paper/90 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-6">
-          <Button variant="outline" onClick={onBack}>
-            <ArrowLeft className="h-4 w-4" /> Zpět na mapu
-          </Button>
-          <nav className="flex items-center gap-1.5 font-display text-sm font-semibold text-ink-soft">
-            <span>Svět</span>
-            {continent && (
-              <>
-                <ChevronRight className="h-4 w-4 opacity-50" />
-                <span>{continentName(continent)}</span>
-              </>
-            )}
-            <ChevronRight className="h-4 w-4 opacity-50" />
-            <span className="text-ink">{countryName(country)}</span>
-          </nav>
-        </div>
-      </div>
-
-      <div className="mx-auto max-w-6xl px-4 pb-14 pt-8 md:px-6">
-        <div className="mb-8">
-          <span className="flex items-center gap-2 font-serif text-base italic text-ink-soft">
-            <MapPin className="h-4 w-4" /> vybraný stát
-          </span>
-          <h2 className="mt-1 font-display text-4xl font-extrabold text-ink md:text-5xl">
-            {countryName(country)}
-          </h2>
-        </div>
-
-        <div className="card-parchment mb-12 px-6 py-10 md:px-12">
-          <Timeline
-            countryCode={country}
-            activeStoryId={activeStory?.id ?? null}
-            onSelect={onSelectStory}
-          />
-        </div>
-
-        <div className="scroll-mt-16">
-          <div className="rule-ornament mb-8">
-            <ScrollText className="h-5 w-5" />
-          </div>
-          <div className="mb-6 flex items-baseline justify-between">
-            <h3 className="font-display text-2xl font-bold text-ink">
-              {activeStory
-                ? `Příběh · ${formatRange(activeStory.yearFrom, activeStory.yearTo)}`
-                : "Příběhy tohoto státu"}
-            </h3>
-            <span className="font-serif text-base italic text-ink-soft">
-              {visibleStories.length}{" "}
-              {visibleStories.length === 1 ? "příběh" : "příběhů"}
-            </span>
-          </div>
-          <StoryGrid stories={visibleStories} />
-
-          <div className="mt-12 flex justify-center">
-            <Button onClick={onBack}>
-              <Globe2 className="h-4 w-4" /> Zpět na mapu
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
