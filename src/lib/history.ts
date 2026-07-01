@@ -108,6 +108,20 @@ export function storiesForCountry(a3: string, stories: Story[] = STORIES): Story
     .sort((a, b) => a.yearFrom - b.yearFrom);
 }
 
+/** Příběhy jednoho kraje (ISO 3166-2), seřazené chronologicky. */
+export function storiesForRegion(code: string, stories: Story[] = STORIES): Story[] {
+  return stories
+    .filter((s) => s.region === code)
+    .sort((a, b) => a.yearFrom - b.yearFrom);
+}
+
+/** Množina kódů krajů, které mají alespoň jeden příběh. */
+export function regionCodesWithStories(stories: Story[] = STORIES): Set<string> {
+  const set = new Set<string>();
+  for (const s of stories) if (s.region) set.add(s.region);
+  return set;
+}
+
 export interface TimelineSegment {
   story: Story;
   /** Pozice středu na ose 0–1 */

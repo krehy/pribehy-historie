@@ -19,7 +19,12 @@ import {
   continentName,
   type ContinentId,
 } from "@/data/continents";
-import { countryCodesWithStories, continentsWithStories } from "@/lib/history";
+import {
+  countryCodesWithStories,
+  continentsWithStories,
+  regionCodesWithStories,
+} from "@/lib/history";
+import { REGION_COUNTRIES } from "@/data/regions";
 import { CompassRose } from "./CompassRose";
 import { MapFrame } from "./MapFrame";
 import { ParchmentDefs } from "./ParchmentDefs";
@@ -64,8 +69,12 @@ interface View {
 interface WorldMapProps {
   selectedContinent: ContinentId | null;
   selectedCountry: string | null;
+  /** A3 státu, jehož kraje se mají zobrazit (3. úroveň), nebo null. */
+  regionsFor: string | null;
+  selectedRegion: string | null;
   onSelectContinent: (id: ContinentId | null) => void;
   onSelectCountry: (a3: string | null) => void;
+  onSelectRegion: (code: string | null) => void;
 }
 
 const DEFAULT_VIEW: View = {
@@ -78,13 +87,18 @@ const DEFAULT_VIEW: View = {
 export function WorldMap({
   selectedContinent,
   selectedCountry,
+  regionsFor,
+  selectedRegion,
   onSelectContinent,
   onSelectCountry,
+  onSelectRegion,
 }: WorldMapProps) {
   const storyCodes = useMemo(() => countryCodesWithStories(), []);
   const storyContinents = useMemo(() => continentsWithStories(), []);
+  const storyRegions = useMemo(() => regionCodesWithStories(), []);
 
   const [topo, setTopo] = useState<any>(null);
+  const [regionGeo, setRegionGeo] = useState<any>(null);
   const [hoveredContinent, setHoveredContinent] = useState<ContinentId | null>(null);
   const [hoveredCountry, setHoveredCountry] = useState<{ name: string; hasStories: boolean } | null>(null);
 
@@ -97,6 +111,10 @@ export function WorldMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const zoomedInRef = useRef(false);
   const wheelLockRef = useRef(false);
+  /** true po dobu programové animace — onMoveEnd tehdy ignorujeme (jinak loop). */
+  const animatingRef = useRef(false);
+  /** Poslední cíl, kam jsme mapu poslali — echo onMoveEnd s touto hodnotou ignorujeme. */
+  const lastTargetRef = useRef<View>(DEFAULT_VIEW);
 
   useEffect(() => {
     let ok = true;
@@ -108,6 +126,22 @@ export function WorldMap({
       ok = false;
     };
   }, []);
+
+  // Geometrie krajů (3. úroveň) — načte se, když je nastaven regionsFor.
+  useEffect(() => {
+    if (!regionsFor || !REGION_COUNTRIES[regionsFor]) {
+      setRegionGeo(null);
+      return;
+    }
+    let ok = true;
+    fetch(REGION_COUNTRIES[regionsFor].geoUrl)
+      .then((r) => r.json())
+      .then((g) => ok && setRegionGeo(g))
+      .catch(() => {});
+    return () => {
+      ok = false;
+    };
+  }, [regionsFor]);
 
   const prepared = useMemo(() => {
     if (!topo) return null;
@@ -146,6 +180,8 @@ export function WorldMap({
     const startTime = performance.now();
     const duration = mapTheme.zoom.transition * 1000;
     const from = viewRef.current;
+    lastTargetRef.current = target;
+    animatingRef.current = true;
     const tick = (now: number) => {
       const t = Math.min(1, (now - startTime) / duration);
       const eased = 1 - Math.pow(1 - t, 3);
@@ -155,7 +191,12 @@ export function WorldMap({
         coordinates: [flon + (tlon - flon) * eased, flat + (tlat - flat) * eased],
         zoom: from.zoom + (target.zoom - from.zoom) * eased,
       });
-      if (t < 1) rafRef.current = requestAnimationFrame(tick);
+      if (t < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        // Necháme doznít, ať onMoveEnd z programové změny neutrhne pan-switch.
+        window.setTimeout(() => (animatingRef.current = false), 120);
+      }
     };
     rafRef.current = requestAnimationFrame(tick);
   }, []);
@@ -163,6 +204,12 @@ export function WorldMap({
   useEffect(() => {
     if (!prepared) return;
     // Změna světadílu vyvolaná tažením: jen přeznačit, mapu nepřecentrovávat.
+    // 3. úroveň (země) má přednost — přiblíž na stát a ukaž historické země.
+    if (regionsFor && REGION_COUNTRIES[regionsFor]) {
+      const rc = REGION_COUNTRIES[regionsFor];
+      animateTo({ coordinates: rc.center, zoom: rc.zoom });
+      return;
+    }
     if (panSwitchRef.current) {
       panSwitchRef.current = false;
       return;
@@ -179,7 +226,7 @@ export function WorldMap({
       animateTo(DEFAULT_VIEW);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCountry, selectedContinent, prepared]);
+  }, [selectedCountry, selectedContinent, regionsFor, prepared]);
 
   useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
 
@@ -216,10 +263,13 @@ export function WorldMap({
   }, [selectedContinent, selectedCountry, animateTo]);
 
   const { palette, country: cs } = mapTheme;
+  const inRegion = !!regionsFor && !!regionGeo;
   const level: "world" | "continent" = selectedContinent ? "continent" : "world";
   const contZoom = selectedContinent ? continentMeta(selectedContinent)?.zoom ?? 2.2 : 1;
-  const markR = 3.4 / contZoom; // konstantní velikost markeru bez ohledu na zoom
-  const labelSize = 8 / contZoom; // názvy států — konstantní velikost i po přiblížení
+  const regionZoom = regionsFor ? REGION_COUNTRIES[regionsFor]?.zoom ?? 7 : 0;
+  const activeZoom = inRegion ? regionZoom : contZoom;
+  const markR = 3.4 / activeZoom; // konstantní velikost markeru bez ohledu na zoom
+  const labelSize = 8 / activeZoom; // popisky — konstantní velikost i po přiblížení
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden">
@@ -238,17 +288,23 @@ export function WorldMap({
           center={view.coordinates}
           zoom={view.zoom}
           minZoom={mapTheme.zoom.minZoom}
-          maxZoom={mapTheme.zoom.maxZoom}
-          translateExtent={TRANSLATE_EXTENT}
+          maxZoom={regionsFor ? 80 : mapTheme.zoom.maxZoom}
+          translateExtent={regionsFor ? undefined : TRANSLATE_EXTENT}
           filterZoomEvent={(e: any) => {
             const t = e?.type;
             // Kolečko i dvojklik řešíme sami (diskrétní krok) — d3 zoom je nech.
             return t !== "wheel" && t !== "dblclick";
           }}
-          onMoveEnd={(pos) => {
+          onMoveEnd={(pos, event) => {
+            // KLÍČOVÉ: reaguj jen na skutečné gesto uživatele. Programové změny
+            // (naše animace + d3 constrain echo) nemají sourceEvent → ignoruj je,
+            // jinak vzniká feedback loop a spurious přeznačování stavu.
+            const e = event as any;
+            if (!e || !e.sourceEvent) return;
+            if (regionsFor) return; // v region módu tažení neřeší přeznačení
             const v = pos as View;
             setView(v);
-            // Tažením se výběr přeznačí na světadíl nejvíc ve středu pohledu.
+            lastTargetRef.current = v;
             if (selectedContinent && !selectedCountry) {
               const near = nearestContinent(v.coordinates);
               if (near && near !== selectedContinent) {
@@ -265,6 +321,89 @@ export function WorldMap({
             {({ path, projection }) => {
               const draw = path || geoPath(projection as any);
               if (!prepared) return null;
+
+              // ---------- 3. ÚROVEŇ: KRAJE ----------
+              if (inRegion) {
+                const feats = (regionGeo.features ?? []) as any[];
+                return (
+                  <>
+                    {/* Bez roztřepeného filtru — při zoomu ~46 by byl přehnaný. */}
+                    <g>
+                      {feats.map((f) => {
+                        const code = f.properties?.code as string;
+                        const has = storyRegions.has(code);
+                        const isSelected = code === selectedRegion;
+                        const fill = isSelected
+                          ? cs.selected.fill
+                          : has
+                          ? cs.hasStories.fill ?? cs.default.fill
+                          : cs.default.fill;
+                        const stroke = isSelected ? cs.selected.stroke : palette.stroke;
+                        return (
+                          <path
+                            key={code}
+                            d={draw(f) || undefined}
+                            onClick={() => has && onSelectRegion(code)}
+                            onMouseEnter={() =>
+                              setHoveredCountry({ name: f.properties?.name, hasStories: has })
+                            }
+                            onMouseLeave={() => setHoveredCountry(null)}
+                            style={{
+                              fill,
+                              stroke,
+                              strokeWidth: isSelected ? 0.35 : 0.25,
+                              opacity: has ? 1 : 0.82,
+                              cursor: has ? "pointer" : "default",
+                              outline: "none",
+                              transition: "fill 0.2s ease",
+                            }}
+                          />
+                        );
+                      })}
+                    </g>
+
+                    {/* popisky krajů + pulzující body na krajích s příběhy */}
+                    {feats.map((f) => {
+                      const code = f.properties?.code as string;
+                      const has = storyRegions.has(code);
+                      const c = geoCentroid(f);
+                      if (!c || Number.isNaN(c[0])) return null;
+                      const isSelected = code === selectedRegion;
+                      return (
+                        <Marker key={`rlbl-${code}`} coordinates={c}>
+                          {has && !isSelected && (
+                            <>
+                              <circle r={markR} fill={SUN} stroke={palette.ink} strokeWidth={markR * 0.25} />
+                              <circle r={markR} fill="none" stroke={SUN} strokeWidth={markR * 0.4}>
+                                <animate attributeName="r" values={`${markR};${markR * 3};${markR}`} dur="1.8s" repeatCount="indefinite" />
+                                <animate attributeName="opacity" values="0.8;0;0.8" dur="1.8s" repeatCount="indefinite" />
+                              </circle>
+                            </>
+                          )}
+                          <text
+                            textAnchor="middle"
+                            dy={has ? markR * 2 + labelSize : labelSize * 0.32}
+                            style={{
+                              fontFamily: '"Baloo 2", sans-serif',
+                              fontWeight: has ? 800 : 600,
+                              fontSize: labelSize,
+                              fill: palette.ink,
+                              opacity: has ? 1 : 0.55,
+                              paintOrder: "stroke",
+                              stroke: palette.paperLight,
+                              strokeWidth: labelSize * 0.3,
+                              strokeLinejoin: "round",
+                              pointerEvents: "none",
+                            }}
+                          >
+                            {f.properties?.name}
+                          </text>
+                        </Marker>
+                      );
+                    })}
+                  </>
+                );
+              }
 
               return (
                 <>

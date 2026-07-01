@@ -5,9 +5,10 @@ import { LoadingScreen } from "@/components/loading/LoadingScreen";
 import { Hero } from "@/components/hero/Hero";
 import { WorldMap } from "@/components/map/WorldMap";
 import { StoryTimeline } from "@/components/timeline/StoryTimeline";
-import { storiesForCountry } from "@/lib/history";
+import { storiesForCountry, storiesForRegion } from "@/lib/history";
 import { countryName } from "@/data/countries";
 import { continentName, continentOfA3, type ContinentId } from "@/data/continents";
+import { hasRegions, regionName } from "@/data/regions";
 import type { Story } from "@/data/stories";
 
 type Phase = "loading" | "hero" | "map";
@@ -23,15 +24,15 @@ export default function Home() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [continent, setContinent] = useState<ContinentId | null>(null);
   const [country, setCountry] = useState<string | null>(null);
+  const [region, setRegion] = useState<string | null>(null);
   const [timelineOpen, setTimelineOpen] = useState(false);
-  // Kam se právě dívá uživatel (desktop hover) — jemné zvýraznění mapa ↔ osa.
   const [focus, setFocus] = useState<Focus>("timeline");
   const revealTimer = useRef<number>(0);
   const timelineOpenRef = useRef(false);
 
   useEffect(() => {
     timelineOpenRef.current = timelineOpen;
-    if (timelineOpen) setFocus("timeline"); // po otevření zvýrazni osu
+    if (timelineOpen) setFocus("timeline");
   }, [timelineOpen]);
 
   useEffect(() => () => clearTimeout(revealTimer.current), []);
@@ -40,16 +41,22 @@ export default function Home() {
     clearTimeout(revealTimer.current);
     setContinent(id);
     setCountry(null);
+    setRegion(null);
     setTimelineOpen(false);
   }, []);
 
   const handleSelectCountry = useCallback((a3: string | null) => {
     clearTimeout(revealTimer.current);
     setCountry(a3);
+    setRegion(null);
     if (a3) {
       const c = continentOfA3(a3);
       if (c) setContinent(c);
-      // Osa už otevřená → jen přepni stát. Jinak ji po přiblížení vysuň.
+      // Stát s 3. úrovní (Česko) → přiblížit na kraje; osa až po výběru kraje.
+      if (hasRegions(a3)) {
+        setTimelineOpen(false);
+        return;
+      }
       if (timelineOpenRef.current) {
         setFocus("timeline");
         return;
@@ -60,18 +67,45 @@ export default function Home() {
     }
   }, []);
 
+  const handleSelectRegion = useCallback((code: string | null) => {
+    clearTimeout(revealTimer.current);
+    setRegion(code);
+    if (code) {
+      if (timelineOpenRef.current) {
+        setFocus("timeline");
+        return;
+      }
+      revealTimer.current = window.setTimeout(() => setTimelineOpen(true), 900);
+    } else {
+      setTimelineOpen(false);
+    }
+  }, []);
+
   const closeTimeline = useCallback(() => {
     clearTimeout(revealTimer.current);
     setTimelineOpen(false);
-    setCountry(null);
+    setRegion((r) => (r ? null : r)); // v kraji → zpět na kraje
+    setCountry((c) => (c && !hasRegions(c) ? null : c)); // ostatní → zpět na státy
   }, []);
 
-  const timelineStories: Story[] = useMemo(
-    () => (country ? storiesForCountry(country) : []),
-    [country]
-  );
+  const inRegionMode = hasRegions(country);
 
+  const timelineStories: Story[] = useMemo(() => {
+    if (region) return storiesForRegion(region);
+    if (country && !hasRegions(country)) return storiesForCountry(country);
+    return [];
+  }, [country, region]);
+
+  const timelineLabel = region ? regionName(region) : country ? countryName(country) : "";
   const mapFocused = !timelineOpen || focus === "map";
+
+  const chip = inRegionMode
+    ? timelineOpen
+      ? "Klikni na jiný kraj"
+      : "Kraje ČR · klikni na kraj"
+    : continent
+    ? `${continentName(continent)} · klikni ${timelineOpen ? "na jiný stát" : "na stát"}`
+    : "";
 
   return (
     <section className="relative h-[calc(100dvh-4rem)] w-full overflow-hidden bg-paper">
@@ -79,7 +113,7 @@ export default function Home() {
         {phase === "loading" && <LoadingScreen onDone={() => setPhase("hero")} />}
       </AnimatePresence>
 
-      {/* ---------- VRSTVA MAPY (zůstává viditelná i pod osou) ---------- */}
+      {/* ---------- VRSTVA MAPY ---------- */}
       {phase !== "loading" && (
         <motion.div
           className="absolute inset-0"
@@ -87,18 +121,20 @@ export default function Home() {
           animate={{
             y: timelineOpen ? "-14%" : "0%",
             scale: timelineOpen ? 0.93 : 1,
-            opacity: mapFocused ? 1 : 0.96, // nenápadné ztlumení, když je fokus na ose
+            opacity: mapFocused ? 1 : 0.96,
           }}
           transition={{ duration: 0.5, ease: EASE }}
         >
           <WorldMap
             selectedContinent={continent}
             selectedCountry={country}
+            regionsFor={inRegionMode ? country : null}
+            selectedRegion={region}
             onSelectContinent={handleSelectContinent}
             onSelectCountry={handleSelectCountry}
+            onSelectRegion={handleSelectRegion}
           />
 
-          {/* Nápověda na úrovni světa */}
           <AnimatePresence>
             {!timelineOpen && !continent && (
               <motion.div
@@ -118,7 +154,7 @@ export default function Home() {
         </motion.div>
       )}
 
-      {/* ---------- OVLÁDÁNÍ (mimo transform mapy — drží nahoře) ---------- */}
+      {/* ---------- OVLÁDÁNÍ (drží nahoře) ---------- */}
       <AnimatePresence>
         {phase === "map" && continent && (
           <motion.div
@@ -131,23 +167,29 @@ export default function Home() {
           >
             <div className="flex w-full max-w-2xl items-center justify-between gap-2">
               <button
-                onClick={() => (timelineOpen ? closeTimeline() : handleSelectContinent(null))}
+                onClick={() => {
+                  if (timelineOpen) closeTimeline();
+                  else if (inRegionMode) {
+                    setRegion(null);
+                    setCountry(null);
+                  } else handleSelectContinent(null);
+                }}
                 className="inline-flex items-center gap-1 rounded-full border-2 border-ink/10 bg-paper-light/90 px-4 py-2 font-display text-sm font-bold text-ink shadow-parchment backdrop-blur-sm transition-colors hover:bg-country-hover"
               >
                 <ChevronLeft className="h-4 w-4" />
-                {timelineOpen ? "Zpět" : "Světadíly"}
+                {timelineOpen || inRegionMode ? "Zpět" : "Světadíly"}
               </button>
               <span className="rounded-full bg-sun px-3 py-1.5 font-display text-sm font-bold text-ink shadow-sticker">
-                {continentName(continent)} · klikni {timelineOpen ? "na jiný stát" : "na stát"}
+                {chip}
               </span>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ---------- KINEMATICKÁ ČASOVÁ OSA (bottom sheet) ---------- */}
+      {/* ---------- KINEMATICKÁ ČASOVÁ OSA ---------- */}
       <AnimatePresence>
-        {timelineOpen && country && timelineStories.length > 0 && (
+        {timelineOpen && timelineStories.length > 0 && (
           <motion.div
             key="timeline"
             className="absolute inset-x-0 bottom-0 z-40 h-[48vh]"
@@ -157,7 +199,6 @@ export default function Home() {
             transition={{ duration: 0.7, ease: EASE }}
             onMouseEnter={() => canHover && setFocus("timeline")}
           >
-            {/* Vnitřní vrstva pro jemný hover-focus (lehce zajede + ztlumí) */}
             <motion.div
               className="h-full overflow-hidden rounded-t-3xl shadow-parchment-lg"
               animate={{
@@ -167,7 +208,7 @@ export default function Home() {
               transition={{ duration: 0.4, ease: EASE }}
             >
               <StoryTimeline
-                countryName={countryName(country)}
+                countryName={timelineLabel}
                 stories={timelineStories}
                 onClose={closeTimeline}
               />
@@ -176,7 +217,7 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* ---------- HERO (odjede nahoru) ---------- */}
+      {/* ---------- HERO ---------- */}
       <AnimatePresence>
         {phase === "hero" && (
           <motion.div

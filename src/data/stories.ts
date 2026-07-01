@@ -51,6 +51,8 @@ export interface Story {
   slug: string;
   /** ISO 3166-1 alpha-3 */
   countryCode: string;
+  /** ISO 3166-2 kód kraje (jen státy s 3. úrovní, např. „CZ-10"). */
+  region?: string;
   /** Rok počátku (záporné = př. n. l.) */
   yearFrom: number;
   /** Rok konce */
@@ -137,6 +139,7 @@ export const STORIES: Story[] = [
     title: "Založení Karlovy univerzity",
     slug: "zalozeni-karlovy-univerzity",
     countryCode: "CZE",
+    region: "cechy",
     yearFrom: 1348,
     yearTo: 1348,
     excerpt:
@@ -336,6 +339,7 @@ export const STORIES: Story[] = [
     title: "Stavba Karlova mostu",
     slug: "stavba-karlova-mostu",
     countryCode: "CZE",
+    region: "cechy",
     yearFrom: 1357,
     yearTo: 1402,
     excerpt:
@@ -346,10 +350,8 @@ export const STORIES: Story[] = [
     media: "stories/cze-bridge-founding.mp4",
     mediaType: "video",
     mediaCredit: "AI ilustrace (storybook) · Příběhy historie",
-    // Poznámka: hero.media je zatím placeholder (founding). Po dodání swap na
-    // stories/cze-bridge-hero.mp4.
     hero: {
-      media: "stories/cze-bridge-founding.mp4",
+      media: "stories/cze-bridge-hero.mp4",
       mediaType: "video",
       eyebrow: "Pražská legenda",
     },
@@ -360,6 +362,15 @@ export const STORIES: Story[] = [
         chroma: true,
         title: "Karel IV.",
         text: "Učený a pověrčivý císař a král, který si termín stavby nechal vypočítat podle hvězd. Za jeho vlády se z Prahy stalo srdce říše.",
+        mood: "mystic",
+      },
+      {
+        kind: "scene",
+        media: "stories/cze-astrolabe.mp4",
+        mediaType: "video",
+        title: "Podle hvězd",
+        text: "Nad pergameny s hvězdnými mapami a astrolábem hledal Karel dokonalý okamžik — chvíli, kdy se čísla i souhvězdí seřadí do řady.",
+        credit: "AI ilustrace (storybook)",
         mood: "mystic",
       },
       {
@@ -407,6 +418,22 @@ export const STORIES: Story[] = [
         text: "Dřevěné jeřáby zvedají pískovcové kvádry nad Vltavu pod Pražským hradem. Stavba trvala desítky let a most stojí dodnes.",
         credit: "AI ilustrace (storybook)",
         mood: "day",
+      },
+      {
+        kind: "scene",
+        media: "stories/cze_mason-green.png",
+        chroma: true,
+        title: "Kameníci",
+        text: "Kvádr po kvádru tesali a kladli kameníci pískovec. Poctivá práce, kterou drží — prý — i pár tisíc vajec v maltě.",
+        mood: "day",
+      },
+      {
+        kind: "scene",
+        media: "stories/cze-bridge-night.jpg",
+        title: "Most, který přetrval věky",
+        text: "Za nocí střeží most sochy světců a mlha nad Vltavou. Kámen položený v magickou chvíli stojí už bezmála sedm století.",
+        credit: "AI ilustrace (storybook)",
+        mood: "night",
       },
       {
         kind: "quiz",
