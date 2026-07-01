@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ComposableMap,
   Geographies,
-  Geography,
   ZoomableGroup,
   Sphere,
   Graticule,
 } from "react-simple-maps";
-import { geoCentroid } from "d3-geo";
+import { geoCentroid, geoPath } from "d3-geo";
+import { feature, merge } from "topojson-client";
 import { mapTheme, continentTheme } from "@/config/mapTheme";
 import { countryByNumeric } from "@/data/countries";
 import {
@@ -40,6 +40,8 @@ const DEFAULT_VIEW: View = {
   zoom: mapTheme.zoom.defaultZoom,
 };
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 export function WorldMap({
   selectedContinent,
   selectedCountry,
@@ -48,8 +50,8 @@ export function WorldMap({
 }: WorldMapProps) {
   const storyCodes = useMemo(() => countryCodesWithStories(), []);
   const storyContinents = useMemo(() => continentsWithStories(), []);
-  const centroids = useRef<Record<string, [number, number]>>({});
 
+  const [topo, setTopo] = useState<any>(null);
   const [hoveredContinent, setHoveredContinent] = useState<ContinentId | null>(null);
   const [hoveredCountry, setHoveredCountry] = useState<{ name: string; hasStories: boolean } | null>(null);
 
@@ -57,17 +59,57 @@ export function WorldMap({
   const viewRef = useRef<View>(DEFAULT_VIEW);
   const rafRef = useRef<number>(0);
 
+  // Načtení topojson (potřebujeme surová data kvůli slévání kontinentů).
+  useEffect(() => {
+    let ok = true;
+    fetch(GEO_URL)
+      .then((r) => r.json())
+      .then((t) => ok && setTopo(t))
+      .catch(() => {});
+    return () => {
+      ok = false;
+    };
+  }, []);
+
+  // Předpočítané tvary: obrysy světadílů (slité státy) + státy podle světadílu.
+  const prepared = useMemo(() => {
+    if (!topo) return null;
+    const geoms = topo.objects.countries.geometries as any[];
+
+    const contGroups: Record<string, any[]> = {};
+    for (const g of geoms) {
+      const c = continentOfNumeric(String(g.id));
+      if (!c) continue;
+      (contGroups[c] ||= []).push(g);
+    }
+    // Obrys světadílu = sloučené státy (vnitřní hranice zmizí).
+    const continentFeatures = Object.entries(contGroups).map(([id, gs]) => ({
+      id: id as ContinentId,
+      feature: { type: "Feature", properties: {}, geometry: merge(topo, gs) } as any,
+    }));
+
+    const allFeatures = (feature(topo, topo.objects.countries) as any).features as any[];
+    const countriesByContinent: Record<string, any[]> = {};
+    const countryCentroids: Record<string, [number, number]> = {};
+    for (const f of allFeatures) {
+      const c = continentOfNumeric(String(f.id));
+      if (!c) continue;
+      (countriesByContinent[c] ||= []).push(f);
+      const a3 = countryByNumeric(String(f.id))?.a3;
+      if (a3) countryCentroids[a3] = geoCentroid(f);
+    }
+    return { continentFeatures, countriesByContinent, countryCentroids };
+  }, [topo]);
+
   useEffect(() => {
     viewRef.current = view;
   }, [view]);
 
-  /** Plynulá animace pohledu (zoom + pan). */
   const animateTo = useCallback((target: View) => {
     cancelAnimationFrame(rafRef.current);
     const startTime = performance.now();
     const duration = mapTheme.zoom.transition * 1000;
     const from = viewRef.current;
-
     const tick = (now: number) => {
       const t = Math.min(1, (now - startTime) / duration);
       const eased = 1 - Math.pow(1 - t, 3);
@@ -82,11 +124,11 @@ export function WorldMap({
     rafRef.current = requestAnimationFrame(tick);
   }, []);
 
-  // Reakce na výběr: stát → přiblížení na stát; jinak světadíl; jinak celý svět.
   useEffect(() => {
-    if (selectedCountry && centroids.current[selectedCountry]) {
+    if (!prepared) return;
+    if (selectedCountry && prepared.countryCentroids[selectedCountry]) {
       animateTo({
-        coordinates: centroids.current[selectedCountry],
+        coordinates: prepared.countryCentroids[selectedCountry],
         zoom: mapTheme.zoom.selectedZoom,
       });
     } else if (selectedContinent) {
@@ -96,11 +138,10 @@ export function WorldMap({
       animateTo(DEFAULT_VIEW);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCountry, selectedContinent]);
+  }, [selectedCountry, selectedContinent, prepared]);
 
   useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
 
-  // Reset hoveru při změně úrovně
   useEffect(() => {
     setHoveredContinent(null);
     setHoveredCountry(null);
@@ -133,135 +174,88 @@ export function WorldMap({
           <Graticule stroke={palette.stroke} strokeWidth={0.25} strokeOpacity={0.35} />
 
           <Geographies geography={GEO_URL}>
-            {({ geographies }) => (
-              <g filter={mapTheme.roughEdges.enabled ? "url(#rough-edges)" : undefined}>
-                {geographies.map((geo) => {
-                  const meta = countryByNumeric(geo.id);
-                  const a3 = meta?.a3;
-                  if (a3) centroids.current[a3] = geoCentroid(geo);
-                  const cont = continentOfNumeric(String(geo.id));
-                  const hasStories = a3 ? storyCodes.has(a3) : false;
+            {({ path, projection }) => {
+              const draw = path || geoPath(projection as any);
+              if (!prepared) return null;
 
-                  // ----- ÚROVEŇ SVĚT: kontinenty jako celky -----
-                  if (level === "world") {
-                    const continentHasStories = cont ? storyContinents.has(cont) : false;
-                    const isHovered = cont != null && cont === hoveredContinent;
-                    const fill = !cont
-                      ? cs.default.fill
-                      : isHovered
-                      ? continentTheme.hoverFill
-                      : continentTheme.tints[cont];
+              return (
+                <g filter={mapTheme.roughEdges.enabled ? "url(#rough-edges)" : undefined}>
+                  {level === "world"
+                    ? // ----- SVĚT: jen obrysy světadílů -----
+                      prepared.continentFeatures.map(({ id, feature: cf }) => {
+                        const has = storyContinents.has(id);
+                        const isHovered = id === hoveredContinent;
+                        const fill = isHovered
+                          ? continentTheme.hoverFill
+                          : continentTheme.tints[id] ?? cs.default.fill;
+                        return (
+                          <path
+                            key={id}
+                            d={draw(cf) || undefined}
+                            onClick={() => has && onSelectContinent(id)}
+                            onMouseEnter={() => has && setHoveredContinent(id)}
+                            onMouseLeave={() => setHoveredContinent(null)}
+                            style={{
+                              fill,
+                              stroke: palette.ink,
+                              strokeWidth: 0.6,
+                              strokeOpacity: has ? 0.85 : 0.4,
+                              opacity: has ? 1 : 0.55,
+                              cursor: has ? "pointer" : "default",
+                              outline: "none",
+                              transition: "fill 0.25s ease, opacity 0.25s ease",
+                            }}
+                          />
+                        );
+                      })
+                    : // ----- SVĚTADÍL: nakreslí se jednotlivé státy -----
+                      prepared.countriesByContinent[selectedContinent!]?.map((f, i) => {
+                        const numeric = String(f.id);
+                        const meta = countryByNumeric(numeric);
+                        const a3 = meta?.a3;
+                        const hasStories = a3 ? storyCodes.has(a3) : false;
+                        const isSelected = a3 != null && a3 === selectedCountry;
 
-                    return (
-                      <Geography
-                        key={geo.rsmKey}
-                        geography={geo}
-                        onClick={() => cont && onSelectContinent(cont)}
-                        onMouseEnter={() => cont && setHoveredContinent(cont)}
-                        onMouseLeave={() => setHoveredContinent(null)}
-                        style={{
-                          default: {
-                            fill,
-                            stroke: `rgba(47,42,36,${continentTheme.worldStrokeOpacity})`,
-                            strokeWidth: 0.4,
-                            outline: "none",
-                            transition: "fill 0.2s ease",
-                            cursor: cont ? "pointer" : "default",
-                            opacity: cont ? 1 : continentTheme.mutedOpacity,
-                          },
-                          hover: {
-                            fill: isHovered || continentHasStories || cont ? continentTheme.hoverFill : fill,
-                            stroke: continentTheme.hoverStroke,
-                            strokeWidth: 0.5,
-                            outline: "none",
-                            cursor: cont ? "pointer" : "default",
-                          },
-                          pressed: { fill: continentTheme.hoverFill, outline: "none" },
-                        }}
-                      />
-                    );
-                  }
+                        const fill = isSelected
+                          ? cs.selected.fill
+                          : hasStories
+                          ? cs.hasStories.fill ?? cs.default.fill
+                          : cs.default.fill;
+                        const stroke = isSelected
+                          ? cs.selected.stroke
+                          : hasStories
+                          ? cs.hasStories.stroke ?? cs.default.stroke
+                          : cs.default.stroke;
+                        const strokeWidth = isSelected
+                          ? cs.selected.strokeWidth
+                          : hasStories
+                          ? cs.hasStories.strokeWidth ?? cs.default.strokeWidth
+                          : cs.default.strokeWidth;
 
-                  // ----- ÚROVEŇ SVĚTADÍL: státy se „rozdělí" -----
-                  const isMember = cont === selectedContinent;
-                  const isSelected = a3 != null && a3 === selectedCountry;
-
-                  if (!isMember) {
-                    // Ostatní světadíly zmizí — zůstane jen vybraný.
-                    return (
-                      <Geography
-                        key={geo.rsmKey}
-                        geography={geo}
-                        style={{
-                          default: {
-                            fill: "transparent",
-                            stroke: "transparent",
-                            strokeWidth: 0,
-                            outline: "none",
-                            opacity: 0,
-                            pointerEvents: "none",
-                            transition: "opacity 0.5s ease",
-                          },
-                          hover: { fill: "transparent", outline: "none", opacity: 0 },
-                          pressed: { outline: "none" },
-                        }}
-                      />
-                    );
-                  }
-
-                  const fill = isSelected
-                    ? cs.selected.fill
-                    : hasStories
-                    ? cs.hasStories.fill ?? cs.default.fill
-                    : cs.default.fill;
-                  const stroke = isSelected
-                    ? cs.selected.stroke
-                    : hasStories
-                    ? cs.hasStories.stroke ?? cs.default.stroke
-                    : cs.default.stroke;
-                  const strokeWidth = isSelected
-                    ? cs.selected.strokeWidth
-                    : hasStories
-                    ? cs.hasStories.strokeWidth ?? cs.default.strokeWidth
-                    : cs.default.strokeWidth;
-
-                  return (
-                    <Geography
-                      key={geo.rsmKey}
-                      geography={geo}
-                      onClick={() => hasStories && a3 && onSelectCountry(a3)}
-                      onMouseEnter={() =>
-                        meta && setHoveredCountry({ name: meta.name, hasStories })
-                      }
-                      onMouseLeave={() => setHoveredCountry(null)}
-                      style={{
-                        default: {
-                          fill,
-                          stroke,
-                          strokeWidth,
-                          outline: "none",
-                          transition: "fill 0.2s ease",
-                          cursor: hasStories ? "pointer" : "default",
-                        },
-                        hover: {
-                          fill: hasStories ? cs.hover.fill : fill,
-                          stroke: cs.hover.stroke,
-                          strokeWidth: cs.hover.strokeWidth,
-                          outline: "none",
-                          cursor: hasStories ? "pointer" : "default",
-                        },
-                        pressed: {
-                          fill: cs.selected.fill,
-                          stroke: cs.selected.stroke,
-                          strokeWidth: cs.selected.strokeWidth,
-                          outline: "none",
-                        },
-                      }}
-                    />
-                  );
-                })}
-              </g>
-            )}
+                        return (
+                          <path
+                            key={f.rsmKey || `${numeric}-${i}`}
+                            d={draw(f) || undefined}
+                            onClick={() => hasStories && a3 && onSelectCountry(a3)}
+                            onMouseEnter={() =>
+                              meta && setHoveredCountry({ name: meta.name, hasStories })
+                            }
+                            onMouseLeave={() => setHoveredCountry(null)}
+                            style={{
+                              fill,
+                              stroke,
+                              strokeWidth,
+                              opacity: hasStories ? 1 : 0.85,
+                              cursor: hasStories ? "pointer" : "default",
+                              outline: "none",
+                              transition: "fill 0.2s ease",
+                            }}
+                          />
+                        );
+                      })}
+                </g>
+              );
+            }}
           </Geographies>
         </ZoomableGroup>
       </ComposableMap>
@@ -293,7 +287,7 @@ export function WorldMap({
       <MapFrame />
       <CompassRose className="absolute bottom-6 right-6 opacity-90" />
 
-      {/* Popisek — světadíl (svět) nebo stát (světadíl) */}
+      {/* Popisek — světadíl / stát */}
       {(level === "world" ? hoveredContinent : hoveredCountry) && (
         <div className="pointer-events-none absolute left-1/2 top-6 -translate-x-1/2">
           <div className="rounded-full border-2 border-ink/10 bg-paper-light/90 px-4 py-1.5 shadow-parchment backdrop-blur-sm">

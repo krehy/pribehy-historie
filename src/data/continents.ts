@@ -38,13 +38,21 @@ export function continentName(id: ContinentId): string {
   return byId.get(id)?.name ?? id;
 }
 
+/**
+ * Ruční korekce zařazení pro transkontinentální státy — kvůli hezčím
+ * obrysům světadílů (jinak by se např. Rusko slilo do Evropy přes Sibiř).
+ */
+const CONTINENT_OVERRIDES: Record<string, ContinentId> = {
+  "643": "asia", // Rusko (většina území v Asii → kompaktnější Evropa)
+};
+
 /** Světadíl podle numerického ISO kódu (přímo z topojson geo.id). */
 export function continentOfNumeric(numeric: string): ContinentId | undefined {
-  return CONTINENT_BY_NUMERIC[numeric];
+  return CONTINENT_OVERRIDES[numeric] ?? CONTINENT_BY_NUMERIC[numeric];
 }
 
 /** Světadíl podle ISO A3 (přes převod na numeric). */
 export function continentOfA3(a3: string): ContinentId | undefined {
   const numeric = countryByA3(a3)?.numeric;
-  return numeric ? CONTINENT_BY_NUMERIC[numeric] : undefined;
+  return numeric ? continentOfNumeric(numeric) : undefined;
 }
