@@ -27,7 +27,12 @@ export function erasForCountry(a3: string | null): Era[] | undefined {
   return a3 === "CZE" ? CZ_ERAS : undefined;
 }
 
+/** Období, do kterého spadá rok. */
+export function eraForYear(year: number, eras: Era[]): Era | undefined {
+  return eras.find((e) => year >= e.from && year <= e.to);
+}
+
 /** Název období, do kterého spadá rok. */
 export function eraNameForYear(year: number, eras: Era[]): string | undefined {
-  return eras.find((e) => year >= e.from && year <= e.to)?.name;
+  return eraForYear(year, eras)?.name;
 }
