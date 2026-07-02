@@ -3,6 +3,7 @@
  * odvozují z tohoto pole. Roky jsou ve formátu: záporné = př. n. l.
  */
 import { CZ_ARTICLES } from "./czArticles";
+import { monogramTile } from "@/lib/placeholder";
 
 /**
  * Beat velkého (kinematického) příběhu — sekvence, kterou uživatel projde.
@@ -154,19 +155,19 @@ export interface Story {
 function cover(seed: string, label: string): string {
   const hues = ["#e8d6ac", "#e3cf9f", "#ecdcb6", "#dfcf9a", "#e6d3a0"];
   const hue = hues[seed.charCodeAt(0) % hues.length];
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='800' height='500'>
-    <defs>
-      <radialGradient id='g' cx='50%' cy='40%' r='75%'>
-        <stop offset='0%' stop-color='#fdfaf0'/>
-        <stop offset='100%' stop-color='${hue}'/>
-      </radialGradient>
-    </defs>
-    <rect width='800' height='500' fill='url(#g)'/>
-    <rect x='16' y='16' width='768' height='468' fill='none' stroke='#b89b6a' stroke-width='2'/>
-    <text x='400' y='265' font-family='Cinzel, serif' font-size='120' fill='#b89b6a'
-      text-anchor='middle' opacity='0.55'>${label}</text>
-  </svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  return monogramTile({
+    w: 800,
+    h: 500,
+    label,
+    from: "#fdfaf0",
+    to: hue,
+    fontFamily: "Cinzel, serif",
+    fontSize: 120,
+    textFill: "#b89b6a",
+    textOpacity: 0.55,
+    textY: 265,
+    overlay: `<rect x='16' y='16' width='768' height='468' fill='none' stroke='#b89b6a' stroke-width='2'/>`,
+  });
 }
 
 /**

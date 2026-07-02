@@ -7,6 +7,7 @@
 import { STORIES, type Story } from "@/data/stories";
 import { rulerBySlug, figureImage, CZ_RULERS } from "@/data/rulers";
 import { assetUrl } from "@/lib/assetUrl";
+import { monogramTile } from "@/lib/placeholder";
 
 // — Osy postavy (viz DESIGN.md) —
 /** Co postava JE (globální). */
@@ -109,26 +110,24 @@ export const ROLE_LABEL: Record<DramaRole, string> = {
   supporting: "vedlejší",
 };
 
-function svgUri(svg: string): string {
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
 /** Portrét 3:4 s monogramem — tón podle kind. */
 export function facePlaceholder(name: string, kind: CharKind): string {
   const [a, b] = KIND_HEX[kind];
   const initial = (name.trim()[0] ?? "?").toUpperCase();
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='300' height='400'>
-    <defs><radialGradient id='g' cx='50%' cy='38%' r='75%'>
-      <stop offset='0%' stop-color='#ffffff' stop-opacity='0.9'/>
-      <stop offset='55%' stop-color='${a}'/>
-      <stop offset='100%' stop-color='${b}'/></radialGradient></defs>
-    <rect width='300' height='400' fill='url(#g)'/>
-    <circle cx='150' cy='150' r='62' fill='#ffffff' opacity='0.35'/>
-    <text x='150' y='172' font-family='Cinzel, Georgia, serif' font-size='72' fill='#ffffff'
-      text-anchor='middle' opacity='0.9'>${initial}</text>
-    <rect x='95' y='250' width='110' height='120' rx='55' fill='#ffffff' opacity='0.3'/>
-  </svg>`;
-  return svgUri(svg);
+  return monogramTile({
+    w: 300,
+    h: 400,
+    label: initial,
+    from: a,
+    to: b,
+    highlight: "#ffffff",
+    radial: { cy: "38%" },
+    fontSize: 72,
+    textY: 172,
+    overlay:
+      `<circle cx='150' cy='150' r='62' fill='#ffffff' opacity='0.35'/>` +
+      `<rect x='95' y='250' width='110' height='120' rx='55' fill='#ffffff' opacity='0.3'/>`,
+  });
 }
 
 /** Pozadí scény 16:9 — gradient + jemné obrysy podle nálady. */
@@ -136,17 +135,22 @@ export function bgPlaceholder(mood: Mood, label: string): string {
   const [a, b] = MOOD_HEX[mood];
   const dark = mood === "night";
   const ink = dark ? "#ffffff" : "#3b3b3b";
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='640' height='360'>
-    <defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'>
-      <stop offset='0%' stop-color='${a}'/><stop offset='100%' stop-color='${b}'/></linearGradient></defs>
-    <rect width='640' height='360' fill='url(#g)'/>
-    <path d='M0 280 L120 220 L240 270 L360 200 L480 250 L640 190 L640 360 L0 360 Z' fill='${ink}' opacity='0.14'/>
-    <path d='M0 320 L160 280 L320 315 L480 275 L640 310 L640 360 L0 360 Z' fill='${ink}' opacity='0.2'/>
-    <circle cx='520' cy='90' r='34' fill='#ffffff' opacity='${dark ? 0.5 : 0.7}'/>
-    <text x='320' y='190' font-family='Cinzel, Georgia, serif' font-size='22' fill='${ink}'
-      text-anchor='middle' opacity='0.55'>${label}</text>
-  </svg>`;
-  return svgUri(svg);
+  return monogramTile({
+    w: 640,
+    h: 360,
+    label,
+    from: a,
+    to: b,
+    gradient: "linear",
+    fontSize: 22,
+    textFill: ink,
+    textOpacity: 0.55,
+    textY: 190,
+    overlay:
+      `<path d='M0 280 L120 220 L240 270 L360 200 L480 250 L640 190 L640 360 L0 360 Z' fill='${ink}' opacity='0.14'/>` +
+      `<path d='M0 320 L160 280 L320 315 L480 275 L640 310 L640 360 L0 360 Z' fill='${ink}' opacity='0.2'/>` +
+      `<circle cx='520' cy='90' r='34' fill='#ffffff' opacity='${dark ? 0.5 : 0.7}'/>`,
+  });
 }
 
 // ————————————————————————————————————————————————————————————————
