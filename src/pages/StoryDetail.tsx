@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { CompassRose } from "@/components/map/CompassRose";
 import { StoryExperience } from "@/components/story/StoryExperience";
 
+const BASE = import.meta.env.BASE_URL;
+
 export default function StoryDetail() {
   const { slug } = useParams();
   const story = STORIES.find((s) => s.slug === slug);
@@ -72,20 +74,36 @@ export default function StoryDetail() {
         </p>
       </motion.header>
 
-      <motion.div
+      <motion.figure
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.15, duration: 0.5 }}
         className="mt-8 overflow-hidden rounded-lg border border-stroke/40 shadow-parchment"
       >
-        <img src={story.coverImage} alt={story.title} className="w-full" />
-      </motion.div>
+        <img
+          src={story.media && story.mediaType !== "video" ? `${BASE}${story.media}` : story.coverImage}
+          alt={story.title}
+          className="w-full"
+        />
+        {story.media && story.mediaCredit && (
+          <figcaption className="bg-paper-light px-4 py-2 text-xs italic text-ink-soft">
+            {story.mediaCredit}
+          </figcaption>
+        )}
+      </motion.figure>
 
-      <div className="prose-parchment mt-10 space-y-5 text-lg leading-relaxed text-ink">
-        {story.body.split("\n").map((para, i) => (
-          <p key={i}>{para}</p>
-        ))}
-      </div>
+      {/<\w+[\s>]/.test(story.body) ? (
+        <div
+          className="prose-parchment mt-10 text-lg leading-relaxed text-ink"
+          dangerouslySetInnerHTML={{ __html: story.body }}
+        />
+      ) : (
+        <div className="prose-parchment mt-10 space-y-5 text-lg leading-relaxed text-ink">
+          {story.body.split("\n").map((para, i) => (
+            <p key={i}>{para}</p>
+          ))}
+        </div>
+      )}
 
       <div className="mt-8 flex flex-wrap gap-2">
         {story.tags.map((tag) => (

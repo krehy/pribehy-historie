@@ -27,6 +27,7 @@ export default function Home() {
   const [country, setCountry] = useState<string | null>(null);
   const [region, setRegion] = useState<string | null>(null);
   const [timelineOpen, setTimelineOpen] = useState(false);
+  const [timelineExpanded, setTimelineExpanded] = useState(false);
   const [focus, setFocus] = useState<Focus>("timeline");
   const revealTimer = useRef<number>(0);
   const timelineOpenRef = useRef(false);
@@ -34,7 +35,11 @@ export default function Home() {
   useEffect(() => {
     timelineOpenRef.current = timelineOpen;
     if (timelineOpen) setFocus("timeline");
+    else setTimelineExpanded(false); // zavření osy → sbal grid zpět na 1. fold
   }, [timelineOpen]);
+
+  // Změna země/kraje → zpět na osu (ne v rozbaleném gridu předchozí země).
+  useEffect(() => setTimelineExpanded(false), [country, region]);
 
   useEffect(() => () => clearTimeout(revealTimer.current), []);
 
@@ -167,19 +172,23 @@ export default function Home() {
             className="absolute inset-x-0 top-4 z-30 flex justify-center px-4"
           >
             <div className="flex w-full max-w-2xl items-center justify-between gap-2">
-              <button
-                onClick={() => {
-                  if (timelineOpen) closeTimeline();
-                  else if (inRegionMode) {
-                    setRegion(null);
-                    setCountry(null);
-                  } else handleSelectContinent(null);
-                }}
-                className="inline-flex items-center gap-1 rounded-full border-2 border-ink/10 bg-paper-light/90 px-4 py-2 font-display text-sm font-bold text-ink shadow-parchment backdrop-blur-sm transition-colors hover:bg-country-hover"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                {timelineOpen || inRegionMode ? "Zpět" : "Světadíly"}
-              </button>
+              {/* Osa má vlastní „Zpět" v levém rohu → tady ho při otevřené ose skryjeme */}
+              {!timelineOpen ? (
+                <button
+                  onClick={() => {
+                    if (inRegionMode) {
+                      setRegion(null);
+                      setCountry(null);
+                    } else handleSelectContinent(null);
+                  }}
+                  className="inline-flex items-center gap-1 rounded-full border-2 border-ink/10 bg-paper-light/90 px-4 py-2 font-display text-sm font-bold text-ink shadow-parchment backdrop-blur-sm transition-colors hover:bg-country-hover"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  {inRegionMode ? "Zpět" : "Světadíly"}
+                </button>
+              ) : (
+                <span />
+              )}
               <span className="rounded-full bg-sun px-3 py-1.5 font-display text-sm font-bold text-ink shadow-sticker">
                 {chip}
               </span>
@@ -193,18 +202,21 @@ export default function Home() {
         {timelineOpen && timelineStories.length > 0 && (
           <motion.div
             key="timeline"
-            className="absolute inset-x-0 bottom-0 z-40 h-[68vh]"
-            initial={{ y: "100%" }}
-            animate={{ y: "0%" }}
+            className="absolute inset-x-0 bottom-0 z-40"
+            initial={{ y: "100%", height: "68vh" }}
+            animate={{ y: "0%", height: timelineExpanded ? "100%" : "68vh" }}
             exit={{ y: "100%" }}
             transition={{ duration: 0.5, ease: EASE }}
             onMouseEnter={() => canHover && setFocus("timeline")}
           >
             <motion.div
-              className="h-full overflow-hidden rounded-t-3xl shadow-parchment-lg"
+              className={
+                "h-full overflow-hidden shadow-parchment-lg transition-[border-radius] duration-500 " +
+                (timelineExpanded ? "rounded-none" : "rounded-t-3xl")
+              }
               animate={{
-                y: focus === "map" ? "6%" : "0%",
-                opacity: focus === "map" ? 0.8 : 1,
+                y: !timelineExpanded && focus === "map" ? "6%" : "0%",
+                opacity: !timelineExpanded && focus === "map" ? 0.8 : 1,
               }}
               transition={{ duration: 0.4, ease: EASE }}
             >
@@ -213,6 +225,7 @@ export default function Home() {
                 stories={timelineStories}
                 onClose={closeTimeline}
                 eras={erasForCountry(country)}
+                onExpandedChange={setTimelineExpanded}
               />
             </motion.div>
           </motion.div>

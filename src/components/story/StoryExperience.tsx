@@ -4,6 +4,7 @@ import {
   AnimatePresence,
   motion,
   useScroll,
+  useTransform,
   useMotionValueEvent,
 } from "framer-motion";
 import {
@@ -19,6 +20,7 @@ import {
 import type { Story, StoryBeat } from "@/data/stories";
 import { countryName } from "@/data/countries";
 import { formatRange } from "@/lib/history";
+import { rulerBySlug, type Ruler } from "@/data/rulers";
 import { ChromaImage } from "./ChromaImage";
 
 const BASE = import.meta.env.BASE_URL;
@@ -34,6 +36,14 @@ export function StoryExperience({ story }: { story: Story }) {
   const beats = story.beats ?? [];
   const narrative = beats.filter((b) => b.kind !== "quiz");
   const quiz = beats.filter((b): b is QuizBeat => b.kind === "quiz");
+  const characters = (story.characters ?? [])
+    .map(rulerBySlug)
+    .filter((r): r is Ruler => !!r);
+  // Video, které úvodní komponenta „přiveze" jako scroll-scrubované pozadí.
+  const introVideoBeat = narrative.find(
+    (b): b is Extract<StoryBeat, { kind: "scene" }> => b.kind === "scene" && b.mediaType === "video"
+  );
+  const introVideo = introVideoBeat ? url(introVideoBeat.media) : undefined;
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const hero = story.hero;
@@ -41,10 +51,90 @@ export function StoryExperience({ story }: { story: Story }) {
   const [started, setStarted] = useState(!hero);
   const titleMs = story.title.length * 55;
 
+  // gtw-styl „▶ přehraj si mě" — eased rAF autoscroll příběhem (jako story-runtime.js).
+  const auto = useRef<{
+    running: boolean;
+    raf: number;
+    vel: number;
+    last: number;
+    elapsed: number;
+    cleanup?: () => void;
+  }>({ running: false, raf: 0, vel: 0, last: 0, elapsed: 0 });
+  const [autoPlaying, setAutoPlaying] = useState(false);
+
+  const stopAuto = () => {
+    const a = auto.current;
+    if (!a.running) return;
+    a.running = false;
+    if (a.raf) cancelAnimationFrame(a.raf);
+    a.cleanup?.();
+    a.cleanup = undefined;
+    const el = scrollRef.current;
+    if (el) el.style.scrollSnapType = "";
+    setAutoPlaying(false);
+  };
+
+  const startAuto = () => {
+    const el = scrollRef.current;
+    const a = auto.current;
+    if (!el || a.running) return;
+    a.running = true;
+    a.vel = 0;
+    a.last = 0;
+    a.elapsed = 0;
+    el.style.scrollSnapType = "none"; // ať autoscroll neškube o snap
+    setAutoPlaying(true);
+    const cancel = () => stopAuto();
+    el.addEventListener("wheel", cancel, { passive: true });
+    el.addEventListener("touchstart", cancel, { passive: true });
+    window.addEventListener("keydown", cancel);
+    a.cleanup = () => {
+      el.removeEventListener("wheel", cancel);
+      el.removeEventListener("touchstart", cancel);
+      window.removeEventListener("keydown", cancel);
+    };
+    const sm = (t: number) => {
+      t = Math.max(0, Math.min(1, t));
+      return t * t * (3 - 2 * t);
+    };
+    const step = (ts: number) => {
+      if (!a.running) return;
+      const dt = a.last ? Math.min(0.05, (ts - a.last) / 1000) : 0.016;
+      a.last = ts;
+      a.elapsed += dt;
+      const max = el.scrollHeight - el.clientHeight;
+      const y = el.scrollTop;
+      const dEnd = max - y;
+      let target = 360 * sm(a.elapsed / 0.9); // jemný rozjezd
+      if (dEnd < el.clientHeight * 0.7) target *= Math.max(0, dEnd / (el.clientHeight * 0.7)); // dojezd
+      a.vel += (target - a.vel) * Math.min(1, dt * 5);
+      if (y >= max - 1 || (dEnd < el.clientHeight * 0.9 && a.vel < 5)) {
+        stopAuto();
+        return;
+      }
+      el.scrollTop = Math.min(y + a.vel * dt, max);
+      a.raf = requestAnimationFrame(step);
+    };
+    a.raf = requestAnimationFrame(step);
+  };
+
+  useEffect(() => () => stopAuto(), []);
+
+  // Po dohrání hero videa plynule „přejmi" na první sekci (úvod postav, jinak 1. beat).
+  const heroDone = useRef(false);
+  const scrollToFirstBeat = () => {
+    if (heroDone.current) return;
+    heroDone.current = true;
+    const root = scrollRef.current;
+    const el = (root?.querySelector("[data-intro]") ??
+      root?.querySelector('[data-beat="0"]')) as HTMLElement | null;
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <div
       ref={scrollRef}
-      className="fixed inset-0 z-[60] overflow-y-auto overflow-x-hidden bg-[#17140e] text-paper-light"
+      className="fixed inset-0 z-[60] snap-y snap-proximity scroll-smooth overflow-y-auto overflow-x-hidden bg-[#17140e] text-paper-light"
     >
       {/* Zpět */}
       <div className="fixed left-4 top-4 z-50">
@@ -56,8 +146,27 @@ export function StoryExperience({ story }: { story: Story }) {
         </Link>
       </div>
 
+      {/* gtw-styl „přehraj si mě" — sám plynule proscrolluje příběhem */}
+      {started && (
+        <button
+          type="button"
+          onClick={autoPlaying ? stopAuto : startAuto}
+          className="fixed bottom-5 right-5 z-50 inline-flex items-center gap-2 rounded-full bg-sun/90 px-5 py-2.5 font-display text-sm font-bold text-ink shadow-sticker backdrop-blur-sm transition-transform hover:-translate-y-0.5"
+        >
+          {autoPlaying ? (
+            <>
+              <span className="text-base leading-none">⏸</span> Pauza
+            </>
+          ) : (
+            <>
+              <Play className="h-4 w-4 fill-ink" /> Přehraj si příběh
+            </>
+          )}
+        </button>
+      )}
+
       {/* Hero — tajemný poster + Play → vypsání nadpisu → text → video */}
-      <header className="relative flex min-h-[72vh] flex-col items-center justify-center overflow-hidden px-6 text-center">
+      <header className="relative flex min-h-screen snap-start flex-col items-center justify-center overflow-hidden px-6 text-center">
         {hero ? (
           <div className="absolute inset-0">
             {hero.mediaType === "video" ? (
@@ -65,6 +174,7 @@ export function StoryExperience({ story }: { story: Story }) {
                 src={url(hero.media)}
                 play={started}
                 poster={hero.poster ? url(hero.poster) : undefined}
+                onEnded={scrollToFirstBeat}
               />
             ) : (
               <div
@@ -79,6 +189,7 @@ export function StoryExperience({ story }: { story: Story }) {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#17140e] via-transparent to-[#17140e]/50" />
             <Sparks />
+            {started && <SmokeOverlay />}
           </div>
         ) : (
           <div className="absolute inset-0 bg-[radial-gradient(120%_100%_at_50%_0%,#3a3220,#17140e)]" />
@@ -136,6 +247,15 @@ export function StoryExperience({ story }: { story: Story }) {
         </div>
       </header>
 
+      {/* Představení postav příběhu (napojeno na Ruler entitu) */}
+      {characters.map((c, i) =>
+        i === 0 && introVideo ? (
+          <CharacterIntroCinematic key={c.slug} ruler={c} scrollRef={scrollRef} videoSrc={introVideo} />
+        ) : (
+          <CharacterCard key={c.slug} ruler={c} index={i} first={i === 0} />
+        )
+      )}
+
       {/* Narativní beaty */}
       {narrative.map((beat, i) =>
         beat.kind === "scene" ? (
@@ -153,7 +273,7 @@ export function StoryExperience({ story }: { story: Story }) {
       )}
 
       {/* Uzávěr */}
-      <footer className="px-6 py-20 text-center">
+      <footer className="flex min-h-[60vh] snap-start flex-col items-center justify-center px-6 py-20 text-center">
         <Link
           to="/"
           className="inline-flex items-center gap-2 rounded-full bg-sun px-7 py-3 font-display text-base font-bold text-ink shadow-sticker transition-transform hover:-translate-y-0.5"
@@ -176,17 +296,17 @@ function SceneBeat({
 }) {
   const flip = index % 2 === 1; // střídání strany textu
   return (
-    <section className="relative flex min-h-[86vh] items-stretch overflow-hidden">
+    <section
+      data-beat={index}
+      className="relative flex min-h-screen snap-start items-stretch overflow-hidden"
+    >
+      {beat.enter === "stars" && <StarSweep />}
       {beat.chroma ? (
         // Vyklíčovaná postava na pergamenovém pozadí
         <div className="relative flex w-full flex-col items-center gap-6 bg-[radial-gradient(120%_100%_at_50%_30%,#4a3f26,#17140e)] px-6 py-16 md:flex-row md:justify-center md:gap-14 md:px-16">
           <div className="pointer-events-none absolute inset-0 opacity-[0.12] [background:repeating-linear-gradient(90deg,#fff_0,#fff_1px,transparent_1px,transparent_46px)]" />
           <MoodOverlay mood={beat.mood} />
-          <ChromaImage
-            src={url(beat.media)}
-            alt={beat.title}
-            className="relative z-10 max-h-[62vh] w-auto drop-shadow-[0_20px_50px_rgba(0,0,0,.6)]"
-          />
+          <ChromaFigure src={url(beat.media)} alt={beat.title} float={beat.float} />
           <BeatText beat={beat} className="relative z-10 max-w-md text-center md:text-left" />
         </div>
       ) : (
@@ -274,6 +394,286 @@ function SceneVideo({ src }: { src: string }) {
   );
 }
 
+/** Vyklíčovaná postava — vstup zespoda; s `float` trvale levituje (záře + stín). */
+function ChromaFigure({ src, alt, float }: { src: string; alt?: string; float?: boolean }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 64, scale: 0.96 }}
+      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      viewport={{ once: true, amount: 0.4 }}
+      transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+      className="relative z-10 flex flex-col items-center"
+    >
+      <motion.div
+        className="relative"
+        animate={float ? { y: [0, -16, 0] } : undefined}
+        transition={float ? { duration: 5.5, repeat: Infinity, ease: "easeInOut" } : undefined}
+      >
+        {float && (
+          <div className="pointer-events-none absolute -inset-10 -z-10 rounded-full bg-[radial-gradient(closest-side,rgba(150,132,235,.4),transparent)] blur-2xl" />
+        )}
+        <ChromaImage
+          src={src}
+          alt={alt}
+          className="max-h-[62vh] w-auto drop-shadow-[0_20px_50px_rgba(0,0,0,.6)]"
+        />
+      </motion.div>
+      {float && (
+        <motion.div
+          className="mt-3 h-3 w-2/3 rounded-[100%] bg-black/55 blur-md"
+          animate={{ scaleX: [1, 0.8, 1], opacity: [0.5, 0.3, 0.5] }}
+          transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
+        />
+      )}
+    </motion.div>
+  );
+}
+
+/** Hvězdný přelet — při vstupu sekce prolétnou/rozsvítí se hvězdy (efekt „podle hvězd"). */
+function StarSweep() {
+  return (
+    <motion.div
+      className="pointer-events-none absolute inset-0 z-[3] overflow-hidden"
+      initial="hidden"
+      whileInView="show"
+      viewport={{ once: true, amount: 0.3 }}
+    >
+      <motion.div
+        className="absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_38%,rgba(123,108,196,.3),transparent_70%)]"
+        variants={{ hidden: { opacity: 0 }, show: { opacity: [0, 1, 0.45] } }}
+        transition={{ duration: 1.8, ease: "easeOut" }}
+      />
+      {Array.from({ length: 44 }).map((_, i) => (
+        <motion.i
+          key={i}
+          className="absolute block h-[3px] w-[3px] rounded-full bg-[#e9ddff]"
+          style={{
+            left: `${(i * 8.7) % 100}%`,
+            top: `${(i * 13.3) % 100}%`,
+            boxShadow: "0 0 7px #cdbfff",
+          }}
+          variants={{
+            hidden: { opacity: 0, scale: 0 },
+            show: { opacity: [0, 1, 0.65], scale: [0, 1.6, 1] },
+          }}
+          transition={{ duration: 1.1, delay: (i % 12) * 0.07, ease: "easeOut" }}
+        />
+      ))}
+    </motion.div>
+  );
+}
+
+/* ---------------- Představení postavy ---------------- */
+
+/** Textový blok postavy — eyebrow, jméno, titul·vláda·rod, bio, fakta, hláška. */
+function RulerInfo({ ruler }: { ruler: Ruler }) {
+  const reign = `${ruler.reignFrom}–${ruler.reignTo === 2025 ? "dnes" : ruler.reignTo}`;
+  return (
+    <>
+      <span className="inline-flex items-center gap-2 rounded-full bg-sun/15 px-3 py-1 font-display text-xs font-bold uppercase tracking-wide text-sun">
+        <Sparkles className="h-3.5 w-3.5" /> Postava příběhu
+      </span>
+      <h2 className="mt-4 font-display text-4xl font-black leading-tight md:text-5xl">{ruler.name}</h2>
+      <div className="mt-2 font-serif text-lg italic text-sun/80">
+        {ruler.title} · {reign}
+        {ruler.house ? ` · ${ruler.house}` : ""}
+      </div>
+      {ruler.bio && <p className="mt-4 font-sans text-lg leading-relaxed text-paper-light/85">{ruler.bio}</p>}
+      {ruler.facts && ruler.facts.length > 0 && (
+        <ul className="mt-5 space-y-2.5 text-left">
+          {ruler.facts.map((f, fi) => (
+            <li key={fi} className="flex items-start gap-2.5 font-sans text-paper-light/80">
+              <Sparkles className="mt-1 h-4 w-4 shrink-0 text-sun/70" />
+              <span>{f}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {ruler.quotes?.[0] && (
+        <p className="mt-5 border-l-2 border-sun/40 pl-4 font-serif text-lg italic text-paper-light/70">
+          „{ruler.quotes[0]}“
+        </p>
+      )}
+    </>
+  );
+}
+
+/** Fullscreen představení postavy příběhu (Ruler) — figura + fakta/hlášky (gtw styl). */
+function CharacterCard({ ruler, index, first }: { ruler: Ruler; index: number; first?: boolean }) {
+  const flip = index % 2 === 1;
+  const reign = `${ruler.reignFrom}–${ruler.reignTo === 2025 ? "dnes" : ruler.reignTo}`;
+  return (
+    <section
+      {...(first ? { "data-intro": "" } : {})}
+      className="relative flex min-h-screen snap-start items-center overflow-hidden bg-[radial-gradient(120%_100%_at_50%_20%,#2a2416,#17140e)] px-6 py-16 md:px-16"
+    >
+      <div className="pointer-events-none absolute inset-0 opacity-[0.10] [background:repeating-linear-gradient(90deg,#fff_0,#fff_1px,transparent_1px,transparent_46px)]" />
+      <div
+        className={`relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center gap-8 md:gap-14 ${
+          flip ? "md:flex-row-reverse" : "md:flex-row"
+        }`}
+      >
+        {/* figura */}
+        <motion.div
+          initial={{ opacity: 0, y: 50, scale: 0.96 }}
+          whileInView={{ opacity: 1, y: 0, scale: 1 }}
+          viewport={{ once: true, amount: 0.4 }}
+          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          className="relative shrink-0"
+        >
+          <div className="pointer-events-none absolute -inset-8 -z-10 rounded-full bg-[radial-gradient(closest-side,rgba(244,196,48,.22),transparent)] blur-2xl" />
+          <ChromaImage
+            src={url(ruler.character)}
+            alt={ruler.name}
+            className="max-h-[52vh] w-auto drop-shadow-[0_20px_50px_rgba(0,0,0,.6)]"
+          />
+        </motion.div>
+
+        {/* karta faktů */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.4 }}
+          transition={{ duration: 0.6, delay: 0.15 }}
+          className="max-w-md text-center md:text-left"
+        >
+          <span className="inline-flex items-center gap-2 rounded-full bg-sun/15 px-3 py-1 font-display text-xs font-bold uppercase tracking-wide text-sun">
+            <Sparkles className="h-3.5 w-3.5" /> Postava příběhu
+          </span>
+          <h2 className="mt-4 font-display text-4xl font-black leading-tight md:text-5xl">{ruler.name}</h2>
+          <div className="mt-2 font-serif text-lg italic text-sun/80">
+            {ruler.title} · {reign}
+            {ruler.house ? ` · ${ruler.house}` : ""}
+          </div>
+          {ruler.bio && (
+            <p className="mt-4 font-sans text-lg leading-relaxed text-paper-light/85">{ruler.bio}</p>
+          )}
+          {ruler.facts && ruler.facts.length > 0 && (
+            <ul className="mt-5 space-y-2.5 text-left">
+              {ruler.facts.map((f, fi) => (
+                <motion.li
+                  key={fi}
+                  initial={{ opacity: 0, x: -14 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true, amount: 0.6 }}
+                  transition={{ duration: 0.4, delay: 0.3 + fi * 0.1 }}
+                  className="flex items-start gap-2.5 font-sans text-paper-light/80"
+                >
+                  <Sparkles className="mt-1 h-4 w-4 shrink-0 text-sun/70" />
+                  <span>{f}</span>
+                </motion.li>
+              ))}
+            </ul>
+          )}
+          {ruler.quotes?.[0] && (
+            <p className="mt-5 border-l-2 border-sun/40 pl-4 font-serif text-lg italic text-paper-light/70">
+              „{ruler.quotes[0]}“
+            </p>
+          )}
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Kinematický úvod postavy (gtw styl) — komponenta „projede" scrollem nahoru a
+ * s sebou přiveze scroll-scrubované video pozadí, které plynule naváže na příběh.
+ * Přišpendlená (sticky) sekce; scroll řídí odchod karty i přehrávání videa.
+ */
+function CharacterIntroCinematic({
+  ruler,
+  scrollRef,
+  videoSrc,
+}: {
+  ruler: Ruler;
+  scrollRef: React.RefObject<HTMLDivElement>;
+  videoSrc: string;
+}) {
+  const sectionRef = useRef<HTMLElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const { scrollYProgress } = useScroll({
+    container: scrollRef,
+    target: sectionRef,
+    offset: ["start start", "end end"],
+  });
+
+  useMotionValueEvent(scrollYProgress, "change", (p) => {
+    const v = videoRef.current;
+    if (v && v.duration && !Number.isNaN(v.duration)) {
+      const t = Math.max(0, Math.min(0.999, (p - 0.5) / 0.5)) * v.duration;
+      if (Math.abs(v.currentTime - t) > 0.02) {
+        try {
+          v.currentTime = t;
+        } catch {
+          /* seek zatím nejde */
+        }
+      }
+    }
+  });
+
+  const stripesOpacity = useTransform(scrollYProgress, [0.32, 0.55], [1, 0]);
+  const videoOpacity = useTransform(scrollYProgress, [0.4, 0.62], [0, 1]);
+  const cardY = useTransform(scrollYProgress, [0, 0.5], [0, -180]);
+  const cardOpacity = useTransform(scrollYProgress, [0.3, 0.5], [1, 0]);
+  const figureY = useTransform(scrollYProgress, [0, 0.5], [0, -320]);
+  const figureScale = useTransform(scrollYProgress, [0, 0.5], [1, 0.72]);
+  const hintOpacity = useTransform(scrollYProgress, [0, 0.12], [1, 0]);
+
+  return (
+    <section ref={sectionRef} data-intro="" className="relative snap-align-none" style={{ height: "260vh" }}>
+      <div className="sticky top-0 h-screen overflow-hidden bg-[#17140e]">
+        {/* scroll-video pozadí — „přiveze ho" komponenta, scrubuje se scrollem */}
+        <motion.video
+          ref={videoRef}
+          style={{ opacity: videoOpacity }}
+          className="absolute inset-0 h-full w-full object-cover"
+          src={videoSrc}
+          muted
+          playsInline
+          preload="auto"
+        />
+        <motion.div
+          style={{ opacity: videoOpacity }}
+          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#17140e] via-[#17140e]/30 to-[#17140e]/60"
+        />
+
+        {/* pergamenové pozadí pod kartou (mizí, jak najíždí video) */}
+        <motion.div
+          style={{ opacity: stripesOpacity }}
+          className="absolute inset-0 bg-[radial-gradient(120%_100%_at_50%_20%,#2a2416,#17140e)]"
+        >
+          <div className="pointer-events-none absolute inset-0 opacity-[0.10] [background:repeating-linear-gradient(90deg,#fff_0,#fff_1px,transparent_1px,transparent_46px)]" />
+        </motion.div>
+
+        {/* Karel komponenta — „projede" scrollem nahoru a odplyne */}
+        <div className="absolute inset-0 flex items-center px-6 md:px-16">
+          <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center gap-8 md:flex-row md:gap-14">
+            <motion.div style={{ y: figureY, scale: figureScale }} className="relative shrink-0">
+              <div className="pointer-events-none absolute -inset-8 -z-10 rounded-full bg-[radial-gradient(closest-side,rgba(244,196,48,.22),transparent)] blur-2xl" />
+              <ChromaImage
+                src={url(ruler.character)}
+                alt={ruler.name}
+                className="max-h-[52vh] w-auto drop-shadow-[0_20px_50px_rgba(0,0,0,.6)]"
+              />
+            </motion.div>
+            <motion.div style={{ y: cardY, opacity: cardOpacity }} className="max-w-md text-center md:text-left">
+              <RulerInfo ruler={ruler} />
+            </motion.div>
+          </div>
+        </div>
+
+        <motion.div
+          style={{ opacity: hintOpacity }}
+          className="pointer-events-none absolute inset-x-0 bottom-6 z-20 text-center font-sans text-sm text-paper-light/50"
+        >
+          ↓ scrolluj — Karel tě provede
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
 /* ---------------- Hero: typewriter, video, nálada ---------------- */
 
 /** Nadpis, který se „vypíše" znak po znaku. */
@@ -301,15 +701,17 @@ function TypeTitle({ text, className }: { text: string; className?: string }) {
   );
 }
 
-/** Video na pozadí hero — přehraje se až po Play (slow-mo). */
+/** Video na pozadí hero — přehraje se JEDNOU po Play (slow-mo); po dohrání `onEnded`. */
 function HeroVideo({
   src,
   play,
   poster,
+  onEnded,
 }: {
   src: string;
   play: boolean;
   poster?: string;
+  onEnded?: () => void;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
@@ -326,9 +728,9 @@ function HeroVideo({
       src={src}
       poster={poster}
       muted
-      loop
       playsInline
       preload="auto"
+      onEnded={onEnded}
     />
   );
 }
@@ -368,6 +770,41 @@ function MoodOverlay({ mood }: { mood?: Extract<StoryBeat, { kind: "scene" }>["m
       <div className="absolute inset-0" style={{ boxShadow: `inset 0 0 220px 70px ${m.vignette}` }} />
       {m.sparks && <Sparks color={m.sparks} />}
     </div>
+  );
+}
+
+/** Kouřový overlay — po spuštění se přes scénu převalí driftující chuchvalce kouře. */
+function SmokeOverlay() {
+  const puffs = [
+    { size: "70vw", top: "8%", dur: 15, delay: 0, o: 0.5 },
+    { size: "55vw", top: "38%", dur: 19, delay: 2, o: 0.42 },
+    { size: "80vw", top: "62%", dur: 17, delay: 1, o: 0.55 },
+    { size: "45vw", top: "22%", dur: 22, delay: 4, o: 0.35 },
+    { size: "60vw", top: "78%", dur: 20, delay: 3, o: 0.48 },
+  ];
+  return (
+    <motion.div
+      className="pointer-events-none absolute inset-0 z-[6] overflow-hidden"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 1.4, ease: "easeOut" }}
+    >
+      {puffs.map((p, i) => (
+        <motion.div
+          key={i}
+          className="absolute rounded-full blur-[60px]"
+          style={{
+            width: p.size,
+            height: p.size,
+            top: p.top,
+            background: `radial-gradient(closest-side, rgba(226,220,210,${p.o}), rgba(226,220,210,0) 70%)`,
+          }}
+          initial={{ left: "-40%", scale: 0.8, opacity: 0 }}
+          animate={{ left: ["-40%", "120%"], scale: [0.8, 1.35, 1.1], opacity: [0, p.o, p.o * 0.6, 0] }}
+          transition={{ duration: p.dur, delay: p.delay, repeat: Infinity, ease: "easeInOut" }}
+        />
+      ))}
+    </motion.div>
   );
 }
 
@@ -435,7 +872,7 @@ function ScrubVideoBeat({
   return (
     <section
       ref={sectionRef}
-      className="relative"
+      className="relative snap-align-none"
       style={{ height: `${beat.captions.length * 95 + 40}vh` }}
     >
       <div className="sticky top-0 flex h-screen items-end overflow-hidden">
@@ -503,7 +940,7 @@ function ScrubVideoBeat({
 function FlipBeat({ beat }: { beat: Extract<StoryBeat, { kind: "flip" }> }) {
   const [flipped, setFlipped] = useState(false);
   return (
-    <section className="flex items-center justify-center px-6 py-16">
+    <section className="flex min-h-screen snap-start items-center justify-center px-6 py-16">
       <motion.div
         initial={{ opacity: 0 }}
         whileInView={{ opacity: 1 }}
@@ -603,7 +1040,7 @@ function QuizSection({
   };
 
   return (
-    <section className="flex min-h-[70vh] items-center justify-center px-6 py-20">
+    <section className="flex min-h-screen snap-start items-center justify-center px-6 py-20">
       <div className="w-full max-w-2xl">
         {/* Opt-in */}
         {!started && (

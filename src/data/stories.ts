@@ -2,6 +2,7 @@
  * stories.ts — MOCK data příběhů (žádné API). Countries a časová osa se
  * odvozují z tohoto pole. Roky jsou ve formátu: záporné = př. n. l.
  */
+import { CZ_ARTICLES } from "./czArticles";
 
 /**
  * Beat velkého (kinematického) příběhu — sekvence, kterou uživatel projde.
@@ -83,6 +84,10 @@ export type StoryBeat =
       mediaType?: "image" | "video";
       /** Postava na greenscreenu k vyklíčování (chroma key) — jako „kdo jsme". */
       chroma?: boolean;
+      /** Chroma postava levituje (plovoucí animace + záře a stín). */
+      float?: boolean;
+      /** Efekt vstupu sekce do záběru: „rise" (výchozí) nebo „stars" (hvězdný přelet). */
+      enter?: "rise" | "stars";
       title?: string;
       text?: string;
       credit?: string;
@@ -121,6 +126,8 @@ export interface Story {
   mediaType?: "image" | "video";
   /** Atribuce zdroje média (public domain / autor). */
   mediaCredit?: string;
+  /** Slugy postav (Ruler), které v příběhu vystupují — úvodní představení na začátku. */
+  characters?: string[];
   /** Beaty velkého (kinematického) příběhu v detailu — scény, flip kartičky, kvíz. */
   beats?: StoryBeat[];
   /** Úvodní hero konkrétního příběhu (poster + Play + video na pozadí). */
@@ -180,6 +187,8 @@ interface CzDraftSeed {
   angle: string;
   /** Iniciála do generovaného pergamenového coveru. */
   label: string;
+  /** Slugy postav (Ruler), které v příběhu vystupují — horní parta v ose. */
+  characters?: string[];
 }
 
 const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
@@ -221,6 +230,7 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
   },
   {
     slug: "zavrazdeni-svateho-vaclava",
+    characters: ["svaty-vaclav"],
     title: "Zavraždění svatého Václava",
     region: "cechy",
     yearFrom: 935,
@@ -239,6 +249,7 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
   },
   {
     slug: "bitva-na-moravskem-poli",
+    characters: ["premysl-otakar-ii"],
     title: "Bitva na Moravském poli a pád Přemysla Otakara II.",
     region: "morava",
     yearFrom: 1278,
@@ -275,6 +286,7 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
   },
   {
     slug: "korunovace-karla-iv-cisarem",
+    characters: ["karel-iv"],
     title: "Korunovace Karla IV. císařem Svaté říše římské",
     region: "cechy",
     yearFrom: 1355,
@@ -293,6 +305,7 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
   },
   {
     slug: "upaleni-jana-husa",
+    characters: ["vaclav-iv"],
     title: "Upálení mistra Jana Husa v Kostnici",
     region: "cechy",
     yearFrom: 1415,
@@ -347,6 +360,7 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
   },
   {
     slug: "rudolfuv-majestat",
+    characters: ["rudolf-ii"],
     title: "Rudolfův Majestát — zákon o náboženské svobodě",
     region: "cechy",
     yearFrom: 1609,
@@ -437,6 +451,7 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
   },
   {
     slug: "ztrata-slezska-marie-terezie",
+    characters: ["marie-terezie"],
     title: "Ztráta Slezska Marií Terezií",
     region: "slezsko",
     yearFrom: 1740,
@@ -455,6 +470,7 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
   },
   {
     slug: "tolerancni-patent-josef-ii",
+    characters: ["josef-ii"],
     title: "Toleranční patent a zrušení nevolnictví Josefa II.",
     region: "cechy",
     yearFrom: 1781,
@@ -491,6 +507,7 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
   },
   {
     slug: "slovansky-sjezd-1848",
+    characters: ["frantisek-josef-i"],
     title: "Slovanský sjezd a revoluce roku 1848 v Praze",
     region: "cechy",
     yearFrom: 1848,
@@ -509,6 +526,7 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
   },
   {
     slug: "zakladni-kamen-narodniho-divadla",
+    characters: ["frantisek-josef-i"],
     title: "Položení základního kamene Národního divadla",
     region: "cechy",
     yearFrom: 1868,
@@ -527,6 +545,7 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
   },
   {
     slug: "vznik-ceskoslovenska-1918",
+    characters: ["tg-masaryk"],
     title: "Vznik Československa",
     region: "cechy",
     yearFrom: 1918,
@@ -545,6 +564,7 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
   },
   {
     slug: "rozdeleni-tesinska",
+    characters: ["tg-masaryk"],
     title: "Rozdělení Těšínska mezi Československo a Polsko",
     region: "slezsko",
     yearFrom: 1919,
@@ -563,6 +583,7 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
   },
   {
     slug: "mnichovska-dohoda",
+    characters: ["edvard-benes"],
     title: "Mnichovská dohoda",
     region: "cechy",
     yearFrom: 1938,
@@ -581,6 +602,7 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
   },
   {
     slug: "atentat-na-heydricha-lidice",
+    characters: ["edvard-benes"],
     title: "Atentát na Heydricha a vyhlazení Lidic",
     region: "cechy",
     yearFrom: 1942,
@@ -599,6 +621,7 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
   },
   {
     slug: "unorovy-prevrat-1948",
+    characters: ["edvard-benes"],
     title: "Únorový převrat — komunisté přebírají moc",
     region: "cechy",
     yearFrom: 1948,
@@ -653,6 +676,7 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
   },
   {
     slug: "sametova-revoluce-1989",
+    characters: ["gustav-husak", "vaclav-havel"],
     title: "Sametová revoluce",
     region: "cechy",
     yearFrom: 1989,
@@ -671,6 +695,7 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
   },
   {
     slug: "rozdeleni-ceskoslovenska-1993",
+    characters: ["vaclav-havel"],
     title: "Rozdělení Československa",
     region: "cechy",
     yearFrom: 1993,
@@ -689,26 +714,37 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
   },
 ];
 
-/** Drafty převedené na plné Story (body = excerpt, generovaný cover). */
-const CZ_DRAFTS: Story[] = CZ_DRAFT_SEEDS.map((d, i) => ({
-  id: `cz${i + 1}`,
-  title: d.title,
-  slug: d.slug,
-  countryCode: "CZE",
-  region: d.region,
-  yearFrom: d.yearFrom,
-  yearTo: d.yearTo,
-  excerpt: d.excerpt,
-  body: d.excerpt,
-  coverImage: cover(d.slug, d.label),
-  tags: d.tags,
-  factuality: d.factuality,
-  // Krátká úroveň splňuje bar → published (vidí čtenář); autor = Křehy.
-  status: "published",
-  author: { name: "Křehy" },
-  sources: d.sources,
-  angle: d.angle,
-}));
+/**
+ * Drafty převedené na plné Story. Kde existuje plnohodnotný článek (czArticles.ts),
+ * použije se jeho `body` (styl historického vypravěče) + reálný obrázek z Wikimedia
+ * Commons jako `media`; jinak fallback na excerpt a generovaný pergamenový cover.
+ */
+const CZ_DRAFTS: Story[] = CZ_DRAFT_SEEDS.map((d, i) => {
+  const art = CZ_ARTICLES[d.slug];
+  return {
+    id: `cz${i + 1}`,
+    title: d.title,
+    slug: d.slug,
+    countryCode: "CZE",
+    region: d.region,
+    yearFrom: d.yearFrom,
+    yearTo: d.yearTo,
+    excerpt: d.excerpt,
+    body: art?.body ?? d.excerpt,
+    coverImage: cover(d.slug, d.label),
+    media: art?.media,
+    mediaType: art ? ("image" as const) : undefined,
+    mediaCredit: art?.mediaCredit,
+    tags: d.tags,
+    factuality: d.factuality,
+    // Krátká úroveň splňuje bar → published (vidí čtenář); autor = Křehy.
+    status: "published" as const,
+    author: { name: "Křehy" },
+    sources: d.sources,
+    angle: d.angle,
+    characters: d.characters,
+  };
+});
 
 export const STORIES: Story[] = [
   {
@@ -976,19 +1012,13 @@ export const STORIES: Story[] = [
       mediaType: "video",
       eyebrow: "Pražská legenda",
     },
+    characters: ["karel-iv"],
     beats: [
-      {
-        kind: "scene",
-        media: "stories/cze-charles-iv-green.jpg",
-        chroma: true,
-        title: "Karel IV.",
-        text: "Učený a pověrčivý císař a král, který si termín stavby nechal vypočítat podle hvězd. Za jeho vlády se z Prahy stalo srdce říše.",
-        mood: "mystic",
-      },
       {
         kind: "scene",
         media: "stories/cze-astrolabe.mp4",
         mediaType: "video",
+        enter: "stars",
         title: "Podle hvězd",
         text: "Nad pergameny s hvězdnými mapami a astrolábem hledal Karel dokonalý okamžik — chvíli, kdy se čísla i souhvězdí seřadí do řady.",
         credit: "AI ilustrace (storybook)",
