@@ -19,11 +19,8 @@ import {
   type CharKind, type AudioState,
 } from "@/components/studio/creator";
 import { RichTextEditor } from "@/components/studio/RichTextEditor";
+import { phaseGates, type PhaseId } from "@/components/studio/phaseGates";
 import { assetUrl } from "@/lib/assetUrl";
-
-const plainLen = (html: string) => html.replace(/<[^>]+>/g, " ").trim().length;
-
-type PhaseId = "article" | "characters" | "beats" | "texts" | "media" | "audio" | "publish";
 
 const PHASES: { id: PhaseId; n: string; label: string; icon: typeof FileText; star?: boolean }[] = [
   { id: "article", n: "0", label: "Článek", icon: FileText },
@@ -96,25 +93,8 @@ export default function StudioEditor() {
   const cast = useMemo(() => proposals.filter((p) => p.status === "accepted" || p.status === "locked"), [proposals]);
   const sceneBeats = useMemo(() => beats.filter((b) => b.kind === "scene" || b.kind === "scrub"), [beats]);
 
-  // — Gating —
-  const doneArticle = plainLen(body) > 20;
-  const doneCharacters =
-    proposals.length > 0 &&
-    proposals.every((p) => p.status !== "pending") &&
-    cast.some((c) => c.role === "protagonist" || c.role === "narrator");
-  const doneBeats = beats.length > 0 && beats.every((b) => b.outline.trim().length > 0);
-  const doneTexts = beats.length > 0 && beats.every((b) => b.text.trim().length > 0);
-  const doneMedia = sceneBeats.length > 0 && sceneBeats.every((b) => !!b.bgUrl);
-  const doneAudio = audio.music && audio.voiceover && audio.sfx;
-
-  const doneMap: Record<PhaseId, boolean> = {
-    article: doneArticle, characters: doneCharacters, beats: doneBeats,
-    texts: doneTexts, media: doneMedia, audio: doneAudio, publish: published,
-  };
-  const unlockedMap: Record<PhaseId, boolean> = {
-    article: true, characters: doneArticle, beats: doneCharacters,
-    texts: doneBeats, media: doneTexts, audio: doneMedia, publish: doneAudio,
-  };
+  // — Gating — jedna čistá funkce mimo React (viz phaseGates.ts).
+  const gates = phaseGates({ body, proposals, beats, sceneBeats, audio, published });
 
   const runMock = (key: string, fn: () => void, ms = 850) => {
     setBusy(key);
@@ -174,8 +154,8 @@ export default function StudioEditor() {
           <ol className="flex gap-2 overflow-x-auto md:flex-col md:gap-1.5">
             {PHASES.map((p) => {
               const active = phase === p.id;
-              const done = doneMap[p.id];
-              const unlocked = unlockedMap[p.id];
+              const done = gates[p.id].done;
+              const unlocked = gates[p.id].unlocked;
               const Icon = p.icon;
               return (
                 <li key={p.id} className="flex-none md:flex-auto">
@@ -217,7 +197,7 @@ export default function StudioEditor() {
                 </figure>
               )}
               <RichTextEditor initialHtml={body} onChange={setBody} minHeight={280} placeholder="Text článku — můžeš vkládat obrázky, nadpisy, citace…" />
-              <NextBar ok={doneArticle} hint={doneArticle ? "" : "Napiš aspoň pár vět, ať má AI z čeho číst."} label="Pokračovat na Postavy" onNext={() => setPhase("characters")} />
+              <NextBar ok={gates.article.done} hint={gates.article.hint} label="Pokračovat na Postavy" onNext={() => setPhase("characters")} />
             </Panel>
           )}
 
@@ -249,11 +229,8 @@ export default function StudioEditor() {
                     <Plus className="h-4 w-4" /> Přidat vlastní postavu
                   </button>
                   <NextBar
-                    ok={doneCharacters}
-                    hint={
-                      proposals.some((p) => p.status === "pending") ? "Vyřeš všechny návrhy (schválit / zahodit)."
-                        : !cast.some((c) => c.role === "protagonist" || c.role === "narrator") ? "Aspoň jedna postava musí být hlavní hrdina nebo vypravěč." : ""
-                    }
+                    ok={gates.characters.done}
+                    hint={gates.characters.hint}
                     label="Pokračovat na Beaty" onNext={() => setPhase("beats")}
                   />
                 </>
@@ -296,7 +273,7 @@ export default function StudioEditor() {
                       onDelete={() => { setBeats((bs) => bs.filter((b) => b.id !== selected.id)); setSelBeat(null); }}
                     />
                   )}
-                  <NextBar ok={doneBeats} hint={doneBeats ? "" : "Každý beat potřebuje účel (jednu větu)."} label="Pokračovat na Texty" onNext={() => setPhase("texts")} />
+                  <NextBar ok={gates.beats.done} hint={gates.beats.hint} label="Pokračovat na Texty" onNext={() => setPhase("texts")} />
                 </>
               )}
             </Panel>
@@ -336,7 +313,7 @@ export default function StudioEditor() {
                   );
                 })}
               </div>
-              <NextBar ok={doneTexts} hint={doneTexts ? "" : "Každý beat musí mít text."} label="Pokračovat na Média" onNext={() => setPhase("media")} />
+              <NextBar ok={gates.texts.done} hint={gates.texts.hint} label="Pokračovat na Média" onNext={() => setPhase("media")} />
             </Panel>
           )}
 
@@ -377,7 +354,7 @@ export default function StudioEditor() {
                   );
                 })}
               </div>
-              <NextBar ok={doneMedia} hint={doneMedia ? "" : "Každá scéna potřebuje pozadí."} label="Pokračovat na Zvuk" onNext={() => setPhase("audio")} />
+              <NextBar ok={gates.media.done} hint={gates.media.hint} label="Pokračovat na Zvuk" onNext={() => setPhase("audio")} />
             </Panel>
           )}
 
@@ -393,7 +370,7 @@ export default function StudioEditor() {
                 <AudioLayer label="Voiceover (1 vypravěč)" on={audio.voiceover} detail={`TTS pro ${beats.length} beatů`} busy={busy === "l-vo"} onGen={() => runMock("l-vo", () => setAudio((a) => ({ ...a, voiceover: true })))} />
                 <AudioLayer label="Zvukové efekty" on={audio.sfx} detail="Podle typu a triggeru beatů (vstup, flip, kvíz)" busy={busy === "l-sfx"} onGen={() => runMock("l-sfx", () => setAudio((a) => ({ ...a, sfx: true })))} />
               </div>
-              <NextBar ok={doneAudio} hint={doneAudio ? "" : "Vygeneruj všechny tři vrstvy."} label="Pokračovat na Publikaci" onNext={() => setPhase("publish")} />
+              <NextBar ok={gates.audio.done} hint={gates.audio.hint} label="Pokračovat na Publikaci" onNext={() => setPhase("publish")} />
             </Panel>
           )}
 
@@ -412,11 +389,11 @@ export default function StudioEditor() {
                   <ul className="space-y-2">
                     {PHASES.filter((p) => p.id !== "publish").map((p) => (
                       <li key={p.id} className="flex items-center gap-2.5 rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm">
-                        <span className={"grid h-5 w-5 place-items-center rounded-full " + (doneMap[p.id] ? "bg-green-500 text-white" : "bg-zinc-200 text-zinc-400")}>
-                          {doneMap[p.id] ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                        <span className={"grid h-5 w-5 place-items-center rounded-full " + (gates[p.id].done ? "bg-green-500 text-white" : "bg-zinc-200 text-zinc-400")}>
+                          {gates[p.id].done ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
                         </span>
                         <span className="font-medium text-zinc-700">{p.label}</span>
-                        <span className="ml-auto text-xs text-zinc-400">{doneMap[p.id] ? "hotovo" : "chybí"}</span>
+                        <span className="ml-auto text-xs text-zinc-400">{gates[p.id].done ? "hotovo" : "chybí"}</span>
                       </li>
                     ))}
                   </ul>
