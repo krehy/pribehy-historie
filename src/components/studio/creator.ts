@@ -198,27 +198,25 @@ export function proposeCast(story: Story | undefined): DraftChar[] {
     });
   });
 
-  // Vymyšlené postavy — pro Václavův příběh konkrétní, jinak generické.
-  const isVaclav = story?.slug?.includes("vaclava");
+  // Vymyšlené postavy — demo obsah čteme z DAT příběhu (`story.demo`), jinak generické.
+  const demo = story?.demo;
   out.push({
     id: "d-antagonist",
-    name: isVaclav ? "Boleslav I." : "Protivník",
+    name: demo?.antagonist?.name ?? "Protivník",
     kind: "figure",
     role: "antagonist",
-    bio: isVaclav
-      ? "Mladší bratr, který stojí proti hlavnímu hrdinovi — reálná historická postava."
-      : "Reálná historická postava stojící proti hrdinovi.",
-    look: "Tvrdší rysy, tmavší paleta, panovnický plášť.",
+    bio: demo?.antagonist?.bio ?? "Reálná historická postava stojící proti hrdinovi.",
+    look: demo?.antagonist?.look ?? "Tvrdší rysy, tmavší paleta, panovnický plášť.",
     source: "ai",
     status: "pending",
   });
   out.push({
     id: "d-narrator",
-    name: isVaclav ? "Podiven" : "Kronikář",
+    name: demo?.narrator?.name ?? "Kronikář",
     kind: "fictional",
     role: "narrator",
-    bio: "Vymyšlený vypravěč, jehož očima příběh sledujeme. Drží se doložených faktů, ale sám je fikce.",
-    look: "Prostý dobový oděv, obyčejný člověk z pozadí děje.",
+    bio: demo?.narrator?.bio ?? "Vymyšlený vypravěč, jehož očima příběh sledujeme. Drží se doložených faktů, ale sám je fikce.",
+    look: demo?.narrator?.look ?? "Prostý dobový oděv, obyčejný člověk z pozadí děje.",
     source: "ai",
     status: "pending",
   });
@@ -291,29 +289,12 @@ export interface BeatProse {
 }
 
 /**
- * DEMO próza pro storyboard příběhu „Zavraždění svatého Václava" (beaty b1–b7).
- * V ostrém provozu tohle napíše AI z outline + článku + hlasů postav; tady je to
- * ručně, aby fáze Texty ukazovala reálný čtenářský text, ne placeholder.
+ * Vygenerovat prózu beatu. Demo obsah čteme z DAT příběhu (`story.demo.prose`,
+ * klíčováno id beatu z `proposeStoryboard`) — jen pro TEN příběh, který ho má.
+ * Když próza chybí, čitelný fallback z outline. V ostrém provozu tohle napíše AI.
  */
-const DEMO_PROSE: Record<string, BeatProse> = {
-  b1: { text: "Bylo časné ráno, když jsem přišel do Staré Boleslavi. Psal se rok 935 a nad poli u kostela ještě ležela mlha. Málokdo tehdy tušil, že se tenhle den zapíše do dějin celé země." },
-  b2: { text: "Kníže Václav přijel na bratrovo pozvání oslavit posvěcení kostela. Byl to muž zbožný a mírný, který raději jednal, než válčil — a věřil, že mezi bratry nemůže být zrady. V tom se měl osudově zmýlit." },
-  b3: {
-    text: "Věděli jste, že Václav byl krátce po smrti prohlášen za svatého a stal se věčným patronem české země?",
-    extra: "Jeho ostatky byly přeneseny do rotundy svatého Víta na Pražském hradě, kde se z knížete stal symbol státnosti.",
-  },
-  b4: { text: "Boleslav měl ale jiné plány. V noci se sešel se svými muži a domluvili se. Toužil po moci a bratr mu stál v cestě. Když se ráno Václav vydal na mši, čekali už na něj u dveří chrámu." },
-  b5: { text: "„Bratře, proč mě chceš zabít?“ zvolal Václav, když se na něj Boleslav vrhl s mečem. Strhla se rvačka; kníže byl silnější a bratra srazil k zemi — ale nedokázal ho zabít. A to ho stálo život. Boleslavovi druhové přiběhli a probodli Václava přímo na prahu kostela." },
-  b6: {
-    text: "Kdo zabil knížete Václava?",
-    extra: "Jeho vlastní bratr Boleslav se svými družiníky, u dveří kostela ve Staré Boleslavi roku 935.",
-  },
-  b7: { text: "Z mrtvého knížete se stal světec. Sám Boleslav prý svého činu později litoval a nechal bratrovy ostatky přenést do Prahy. A tak se z bratrovraždy zrodil věčný patron země — svatý Václav, kníže, který nechtěl prolévat krev." },
-};
-
-/** Vygenerovat prózu beatu. Demo příběh má ruční text; jinak čitelný fallback z outline. */
-export function generateBeatText(beat: DraftBeat): BeatProse {
-  const demo = DEMO_PROSE[beat.id];
+export function generateBeatText(beat: DraftBeat, story?: Story): BeatProse {
+  const demo = story?.demo?.prose?.[beat.id];
   if (demo) return demo;
   if (beat.kind === "quiz") return { text: beat.outline, extra: "Správná odpověď a krátké vysvětlení." };
   if (beat.kind === "flip") return { text: beat.outline, extra: "Doplňující doložený fakt k tématu." };

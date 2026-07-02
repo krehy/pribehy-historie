@@ -105,6 +105,31 @@ export type StoryBeat =
       mood?: BeatMood;
     };
 
+/** Jedna ručně napsaná próza beatu pro DEMO obsah (viz `StoryDemo`). */
+export interface DemoBeatProse {
+  text: string;
+  extra?: string;
+}
+
+/** Přepis jedné vymyšlené postavy v demo castu (antagonista / vypravěč). */
+export interface DemoCastMember {
+  name: string;
+  bio?: string;
+  look?: string;
+}
+
+/**
+ * DEMO obsah příběhu — ručně napsaný cast a próza, aby autorský creator (studio)
+ * ukázal reálný text místo generického placeholderu. Je to DATA konkrétního příběhu:
+ * `prose` je klíčovaná id beatu z `proposeStoryboard` (b1..b7). Když pole chybí,
+ * creator použije generický fallback. Nikdy se neaplikuje na cizí příběh.
+ */
+export interface StoryDemo {
+  antagonist?: DemoCastMember;
+  narrator?: DemoCastMember;
+  prose?: Record<string, DemoBeatProse>;
+}
+
 export interface Story {
   id: string;
   title: string;
@@ -149,6 +174,8 @@ export interface Story {
   author?: { name: string; url?: string };
   /** Příběhový hák / úhel pro stavbu příběhu (u draftů-nápadů z rešerše). */
   angle?: string;
+  /** DEMO obsah pro autorský creator (ruční cast + próza konkrétního příběhu). */
+  demo?: StoryDemo;
 }
 
 /** Placeholder obrázek — pergamenový gradient s iniciálou (data URI, žádné API) */
@@ -190,6 +217,8 @@ interface CzDraftSeed {
   label: string;
   /** Slugy postav (Ruler), které v příběhu vystupují — horní parta v ose. */
   characters?: string[];
+  /** DEMO obsah pro autorský creator (ruční cast + próza konkrétního příběhu). */
+  demo?: StoryDemo;
 }
 
 const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
@@ -247,6 +276,28 @@ const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
     angle:
       "Bratrovražda, z níž vyroste kult zakladatele národní identity. Fikce: napětí mezi bratry očima družiníka nebo kněze; kolik je politika a kolik legenda dotvořená po smrti.",
     label: "V",
+    demo: {
+      antagonist: {
+        name: "Boleslav I.",
+        bio: "Mladší bratr, který stojí proti hlavnímu hrdinovi — reálná historická postava.",
+      },
+      narrator: { name: "Podiven" },
+      prose: {
+        b1: { text: "Bylo časné ráno, když jsem přišel do Staré Boleslavi. Psal se rok 935 a nad poli u kostela ještě ležela mlha. Málokdo tehdy tušil, že se tenhle den zapíše do dějin celé země." },
+        b2: { text: "Kníže Václav přijel na bratrovo pozvání oslavit posvěcení kostela. Byl to muž zbožný a mírný, který raději jednal, než válčil — a věřil, že mezi bratry nemůže být zrady. V tom se měl osudově zmýlit." },
+        b3: {
+          text: "Věděli jste, že Václav byl krátce po smrti prohlášen za svatého a stal se věčným patronem české země?",
+          extra: "Jeho ostatky byly přeneseny do rotundy svatého Víta na Pražském hradě, kde se z knížete stal symbol státnosti.",
+        },
+        b4: { text: "Boleslav měl ale jiné plány. V noci se sešel se svými muži a domluvili se. Toužil po moci a bratr mu stál v cestě. Když se ráno Václav vydal na mši, čekali už na něj u dveří chrámu." },
+        b5: { text: "„Bratře, proč mě chceš zabít?“ zvolal Václav, když se na něj Boleslav vrhl s mečem. Strhla se rvačka; kníže byl silnější a bratra srazil k zemi — ale nedokázal ho zabít. A to ho stálo život. Boleslavovi druhové přiběhli a probodli Václava přímo na prahu kostela." },
+        b6: {
+          text: "Kdo zabil knížete Václava?",
+          extra: "Jeho vlastní bratr Boleslav se svými družiníky, u dveří kostela ve Staré Boleslavi roku 935.",
+        },
+        b7: { text: "Z mrtvého knížete se stal světec. Sám Boleslav prý svého činu později litoval a nechal bratrovy ostatky přenést do Prahy. A tak se z bratrovraždy zrodil věčný patron země — svatý Václav, kníže, který nechtěl prolévat krev." },
+      },
+    },
   },
   {
     slug: "bitva-na-moravskem-poli",
@@ -744,6 +795,7 @@ const CZ_DRAFTS: Story[] = CZ_DRAFT_SEEDS.map((d, i) => {
     sources: d.sources,
     angle: d.angle,
     characters: d.characters,
+    demo: d.demo,
   };
 });
 

@@ -305,7 +305,7 @@ export default function StudioEditor() {
           {/* 3 — TEXTY */}
           {phase === "texts" && (
             <Panel title="Texty" icon={<PenLine className="h-5 w-5 text-amber-500" />} desc="Plná próza každého beatu. Čti příběh shora dolů, jako by ho četl čtenář.">
-              <button disabled={busy === "alltext"} onClick={() => runMock("alltext", () => setBeats((bs) => bs.map((b) => { const g = generateBeatText(b); return { ...b, text: g.text, extra: g.extra ?? b.extra }; })), 1100)}
+              <button disabled={busy === "alltext"} onClick={() => runMock("alltext", () => setBeats((bs) => bs.map((b) => { const g = generateBeatText(b, story); return { ...b, text: g.text, extra: g.extra ?? b.extra }; })), 1100)}
                 className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-amber-400 px-4 py-2 font-display text-sm font-bold text-zinc-900 disabled:opacity-40">
                 {busy === "alltext" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Vygenerovat všechny texty
               </button>
@@ -327,7 +327,7 @@ export default function StudioEditor() {
                         <input value={b.extra ?? ""} onChange={(e) => patchBeat(b.id, { extra: e.target.value })} placeholder={b.kind === "flip" ? "Zadní strana kartičky" : "Správná odpověď / vysvětlení"} className="mt-2 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-amber-400" />
                       )}
                       <div className="mt-2 flex justify-end">
-                        <button disabled={busy === `txt-${b.id}`} onClick={() => runMock(`txt-${b.id}`, () => { const g = generateBeatText(b); patchBeat(b.id, { text: g.text, extra: g.extra ?? b.extra }); })}
+                        <button disabled={busy === `txt-${b.id}`} onClick={() => runMock(`txt-${b.id}`, () => { const g = generateBeatText(b, story); patchBeat(b.id, { text: g.text, extra: g.extra ?? b.extra }); })}
                           className="inline-flex items-center gap-1 rounded-full border border-zinc-300 px-2.5 py-1 text-[11px] text-zinc-600 hover:bg-zinc-50 disabled:opacity-50">
                           {busy === `txt-${b.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : b.text ? <RefreshCw className="h-3 w-3" /> : <Wand2 className="h-3 w-3" />} {b.text ? "Přegenerovat" : "Vygenerovat"}
                         </button>
