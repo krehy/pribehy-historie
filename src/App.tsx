@@ -5,6 +5,9 @@ import Home from "@/pages/Home";
 import StoryDetail from "@/pages/StoryDetail";
 import About from "@/pages/About";
 import Studio from "@/pages/Studio";
+import Admin from "@/pages/Admin";
+import AuthorProfile from "@/pages/AuthorProfile";
+import BecomeAuthor from "@/pages/BecomeAuthor";
 import { RequireRole } from "@/components/auth/RequireRole";
 
 function ScrollToTop() {
@@ -23,11 +26,21 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/pribeh/:slug" element={<StoryDetail />} />
         <Route path="/o-projektu" element={<About />} />
+        <Route path="/author/:slug" element={<AuthorProfile />} />
+        <Route path="/become-author" element={<BecomeAuthor />} />
         <Route
           path="/studio"
           element={
             <RequireRole role={["author", "admin"]}>
               <Studio />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <RequireRole role="admin">
+              <Admin />
             </RequireRole>
           }
         />

@@ -55,13 +55,13 @@ export function Header() {
 
   // Domovská základna přihlášeného uživatele podle role.
   const homeBase =
-    user?.role === "admin" ? "/admin" : user?.role === "author" ? "/studio" : "/profile";
+    user?.role === "admin" ? "/admin" : user?.role === "author" ? "/studio" : "/";
 
   // Odkazy autorské zóny (dole v navmenu), gated podle role.
   const zoneLinks: { to: string; label: string }[] = [];
   if (user?.role === "author" || user?.role === "admin") zoneLinks.push({ to: "/studio", label: "Studio" });
   if (user?.role === "admin") zoneLinks.push({ to: "/admin", label: "Administrace" });
-  if (user) zoneLinks.push({ to: "/profile", label: "Můj profil" });
+  if (user?.slug) zoneLinks.push({ to: `/author/${user.slug}`, label: "Můj profil" });
   if (!user || user.role === "reader") zoneLinks.push({ to: "/become-author", label: "Stát se autorem" });
 
   // Zamknout scroll stránky, když je menu otevřené; Escape zavírá.

@@ -19,7 +19,8 @@ export const MOCK_KREHY: SessionUser = { name: "Křehy", role: "author", slug: "
 
 /** Sestaví mock uživatele pro danou roli (pro Tweaks panel). */
 export function mockUserForRole(role: Role): SessionUser {
-  return { name: "Křehy", role, slug: "krehy" };
+  // Autor/admin má veřejný profil (slug); čtenář zatím ne.
+  return role === "reader" ? { name: "Křehy", role } : { name: "Křehy", role, slug: "krehy" };
 }
 
 interface SessionValue {
