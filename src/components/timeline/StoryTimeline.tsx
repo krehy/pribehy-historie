@@ -284,9 +284,6 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
                 if (movedRef.current) return;
                 goTo(i);
               }}
-              onHover={() => {
-                if (!isMobile) goTo(i);
-              }}
             />
           ))}
         </motion.div>
@@ -369,7 +366,6 @@ function LensCard({
   isMobile,
   isActive,
   onSelect,
-  onHover,
 }: {
   story: Story;
   cx: number;
@@ -378,7 +374,6 @@ function LensCard({
   isMobile: boolean;
   isActive: boolean;
   onSelect: () => void;
-  onHover: () => void;
 }) {
   const dim = isMobile ? "clamp(60px,19vw,96px)" : "clamp(84px,13vh,150px)";
   const maxScale = isMobile ? 1.5 : 1.55;
@@ -402,10 +397,8 @@ function LensCard({
 
   return (
     <motion.button
-      onMouseEnter={onHover}
-      onFocus={onHover}
       onClick={onSelect}
-      className="absolute top-[74%] z-10 -translate-x-1/2 -translate-y-full pb-3"
+      className="absolute top-[74%] z-10 -translate-x-1/2 -translate-y-full pb-3 transition-transform duration-200 hover:scale-[1.06] focus-visible:scale-[1.06]"
       style={{ left: cx, opacity }}
     >
       <motion.div
