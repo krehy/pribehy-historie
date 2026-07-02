@@ -7,6 +7,22 @@ import { STORIES, type Story } from "@/data/stories";
 import { countryName } from "@/data/countries";
 import { continentOfA3, type ContinentId } from "@/data/continents";
 
+/** Příběh je veřejný (status chybí = považujeme za published). */
+export function isPublished(s: Story): boolean {
+  return (s.status ?? "published") === "published";
+}
+
+/**
+ * Příběhy viditelné pro ČTENÁŘE (jen published). Reader-facing funkce (mapa, osa,
+ * grid) berou tohle jako default; Studio/Admin si předávají plné `STORIES`.
+ */
+export const PUBLISHED_STORIES: Story[] = STORIES.filter(isPublished);
+
+/** Příběhy jednoho autora (podle jména) — pro Studio dashboard. */
+export function storiesByAuthor(name: string, stories: Story[] = STORIES): Story[] {
+  return stories.filter((s) => s.author?.name === name);
+}
+
 /** Formátování roku: záporné = př. n. l. */
 export function formatYear(year: number): string {
   if (year < 0) return `${Math.abs(year)} př. n. l.`;
@@ -31,7 +47,7 @@ export interface CountryWithStories {
 }
 
 /** Státy, které mají příběhy — odvozeno z dat. */
-export function countriesWithStories(stories: Story[] = STORIES): CountryWithStories[] {
+export function countriesWithStories(stories: Story[] = PUBLISHED_STORIES): CountryWithStories[] {
   const map = new Map<string, CountryWithStories>();
   for (const s of stories) {
     const existing = map.get(s.countryCode);
@@ -53,7 +69,7 @@ export function countriesWithStories(stories: Story[] = STORIES): CountryWithSto
 }
 
 /** Množina A3 kódů států s příběhy — rychlý lookup pro mapu. */
-export function countryCodesWithStories(stories: Story[] = STORIES): Set<string> {
+export function countryCodesWithStories(stories: Story[] = PUBLISHED_STORIES): Set<string> {
   return new Set(stories.map((s) => s.countryCode));
 }
 
@@ -65,7 +81,7 @@ export interface ContinentWithStories {
 }
 
 export function continentsWithStories(
-  stories: Story[] = STORIES
+  stories: Story[] = PUBLISHED_STORIES
 ): Set<ContinentId> {
   const set = new Set<ContinentId>();
   for (const s of stories) {
@@ -78,7 +94,7 @@ export function continentsWithStories(
 /** Statistika příběhů pro jeden světadíl. */
 export function statsForContinent(
   continent: ContinentId,
-  stories: Story[] = STORIES
+  stories: Story[] = PUBLISHED_STORIES
 ): ContinentWithStories {
   const countries = new Set<string>();
   let storyCount = 0;
@@ -94,7 +110,7 @@ export function statsForContinent(
 /** Země s příběhy patřící do daného světadílu. */
 export function countriesInContinent(
   continent: ContinentId,
-  stories: Story[] = STORIES
+  stories: Story[] = PUBLISHED_STORIES
 ): CountryWithStories[] {
   return countriesWithStories(stories).filter(
     (c) => continentOfA3(c.a3) === continent
@@ -102,21 +118,21 @@ export function countriesInContinent(
 }
 
 /** Příběhy jednoho státu, seřazené chronologicky. */
-export function storiesForCountry(a3: string, stories: Story[] = STORIES): Story[] {
+export function storiesForCountry(a3: string, stories: Story[] = PUBLISHED_STORIES): Story[] {
   return stories
     .filter((s) => s.countryCode === a3)
     .sort((a, b) => a.yearFrom - b.yearFrom);
 }
 
 /** Příběhy jednoho kraje (ISO 3166-2), seřazené chronologicky. */
-export function storiesForRegion(code: string, stories: Story[] = STORIES): Story[] {
+export function storiesForRegion(code: string, stories: Story[] = PUBLISHED_STORIES): Story[] {
   return stories
     .filter((s) => s.region === code)
     .sort((a, b) => a.yearFrom - b.yearFrom);
 }
 
 /** Množina kódů krajů, které mají alespoň jeden příběh. */
-export function regionCodesWithStories(stories: Story[] = STORIES): Set<string> {
+export function regionCodesWithStories(stories: Story[] = PUBLISHED_STORIES): Set<string> {
   const set = new Set<string>();
   for (const s of stories) if (s.region) set.add(s.region);
   return set;
@@ -134,7 +150,7 @@ export interface TimelineSegment {
  * Časová osa pro stát: vrací rozsah (min–max) a jednotlivé body/segmenty
  * s normalizovanou pozicí, aby šla vykreslit lineárně.
  */
-export function timelineForCountry(a3: string, stories: Story[] = STORIES) {
+export function timelineForCountry(a3: string, stories: Story[] = PUBLISHED_STORIES) {
   const items = storiesForCountry(a3, stories);
   if (items.length === 0) {
     return { min: 0, max: 0, span: 0, segments: [] as TimelineSegment[] };

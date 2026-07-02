@@ -12,6 +12,60 @@
 /** Nálada beatu — řídí barevný nádech, částice a vinětaci scény. */
 export type BeatMood = "dawn" | "mystic" | "day" | "night";
 
+/**
+ * Vrstva 1 — HUDBA. Bezešvě loopující stopy klíčované NÁLADOU beatu (`mood`).
+ * Loop se sdílí napříč beaty stejné nálady; při změně nálady se crossfadne.
+ * Formát pro čisté loopy: .ogg (Opus) / .m4a (AAC) — NE mp3 (gapless problém).
+ */
+export interface MusicLayer {
+  /** Úvodní/hero loop (hraje, než začne první beat). */
+  intro?: string;
+  /** Loop pro každou náladu (relativní k BASE_URL); sdílí se mezi beaty té nálady. */
+  loops: Partial<Record<BeatMood, string>>;
+  /** Délka crossfade mezi loopy při změně nálady, ms (default ~800). */
+  crossfadeMs?: number;
+}
+
+/**
+ * Vrstva 2 — VOICEOVER (vypravěč). Klip na beat; přehraje se JEDNOU při vstupu na beat
+ * (neloopuje). Stejný princip jako hudba — zní jen to, co je na aktuálním beatu.
+ * Formát: mp3/m4a (jednorázové, gapless neřeší).
+ */
+export interface VoiceoverLayer {
+  /** Úvodní slovo pod hero (volitelné). */
+  intro?: string;
+  /** i-tý klip ↔ i-tý beat; `null` = beat bez namluvení. */
+  perBeat: (string | null)[];
+}
+
+/** Trigger zvukového efektu. */
+export type SfxTrigger =
+  | { on: "beatEnter"; beat: number }
+  | { on: "flip" }
+  | { on: "quizCorrect" }
+  | { on: "quizWrong" }
+  | { on: "click" };
+
+/** Vrstva 3 — ZVUKOVÝ EFEKT spouštěný triggerem (vstup na beat, flip, klik, kvíz). */
+export interface Sfx {
+  src: string;
+  trigger: SfxTrigger;
+  /** Hlasitost 0–1 (default 1). */
+  gain?: number;
+}
+
+/**
+ * Zvuk příběhu — tři vrstvy řízené aktivním beatem: hudba (loop per nálada),
+ * voiceover (klip per beat) a SFX (spouštěné triggerem). Přehrávač zatím není
+ * postavený (backlog) — data slouží jako scaffold pro creator. Zvuk se odemkne
+ * přes Play v hero (autoplay policy).
+ */
+export interface StoryAudio {
+  music?: MusicLayer;
+  voiceover?: VoiceoverLayer;
+  sfx?: Sfx[];
+}
+
 /** Úvodní „hero" konkrétního příběhu — poster + video na pozadí, spustí se přes Play. */
 export interface StoryHero {
   media: string;
@@ -71,6 +125,22 @@ export interface Story {
   beats?: StoryBeat[];
   /** Úvodní hero konkrétního příběhu (poster + Play + video na pozadí). */
   hero?: StoryHero;
+  /** Hudba — jeden mp3 rozdělený na segmenty mapované na beaty. */
+  audio?: StoryAudio;
+  /**
+   * Doložený fakt / pověst / autorská fikce / firemní brand story.
+   * Web podle toho vizuálně odliší, co uživatel čte. Fikce VŽDY vychází z reálného
+   * faktu (drží se `sources` té události jako kotvy).
+   */
+  factuality?: "fact" | "legend" | "fiction" | "brand";
+  /** Publikační stav — web ve výchozím stavu ukazuje jen published; draft = rozpracováno. */
+  status?: "draft" | "published";
+  /** Ověřovací zdroje (URL). Povinné u factuality === "fact". */
+  sources?: string[];
+  /** Autor příběhu (u fikce / brand story). */
+  author?: { name: string; url?: string };
+  /** Příběhový hák / úhel pro stavbu příběhu (u draftů-nápadů z rešerše). */
+  angle?: string;
 }
 
 /** Placeholder obrázek — pergamenový gradient s iniciálou (data URI, žádné API) */
@@ -91,6 +161,554 @@ function cover(seed: string, label: string): string {
   </svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
+
+/**
+ * České DRAFTY — nápady z rešerše veřejných zdrojů (Wikipedia), ověřené roky.
+ * Slouží k naplnění časové osy pro design a jako zásobník, z něhož se staví
+ * plné příběhy (doložené i fikce založená na faktu). `status: "draft"`.
+ */
+interface CzDraftSeed {
+  slug: string;
+  title: string;
+  region: "cechy" | "morava" | "slezsko";
+  yearFrom: number;
+  yearTo: number;
+  excerpt: string;
+  tags: string[];
+  factuality: "fact" | "legend";
+  sources: string[];
+  angle: string;
+  /** Iniciála do generovaného pergamenového coveru. */
+  label: string;
+}
+
+const CZ_DRAFT_SEEDS: CzDraftSeed[] = [
+  {
+    slug: "bitva-u-wogastisburgu-samova-rise",
+    title: "Bitva u Wogastisburgu a Sámova říše",
+    region: "cechy",
+    yearFrom: 631,
+    yearTo: 631,
+    excerpt:
+      "Franský kupec Sámo spojil slovanské kmeny a u záhadného hradiště Wogastisburg rozdrtil vojsko krále Dagoberta I. Vůbec první doložená bitva na našem území.",
+    tags: ["raný středověk", "politika", "válka"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Bitva_u_Wogastisburgu",
+      "https://cs.wikipedia.org/wiki/Sámova_říše",
+    ],
+    angle:
+      "Cizí obchodník se stane vládcem slovanského svazu a porazí franského krále. Fikce: očima Sámova bojovníka nebo poraženého franského vyslance Sicharia. Místo bitvy dodnes nikdo nezná — prostor pro tajemství.",
+    label: "S",
+  },
+  {
+    slug: "vznik-velke-moravy-mojmir",
+    title: "Vznik Velké Moravy za Mojmíra I.",
+    region: "morava",
+    yearFrom: 833,
+    yearTo: 833,
+    excerpt:
+      "Kníže Mojmír I. vyhnal nitranského Pribinu a spojil obě knížectví v první velký stát našich předků — Velkou Moravu.",
+    tags: ["raný středověk", "politika", "stát"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Velká_Morava",
+      "https://cs.wikipedia.org/wiki/Mojmír_I.",
+    ],
+    angle:
+      "Zrod prvního domácího státu z mocenského převratu. Fikce: příběh vyhnaného Pribiny, poraženého soupeře, který musí opustit svou zem — dějiny očima toho, kdo prohrál.",
+    label: "V",
+  },
+  {
+    slug: "zavrazdeni-svateho-vaclava",
+    title: "Zavraždění svatého Václava",
+    region: "cechy",
+    yearFrom: 935,
+    yearTo: 935,
+    excerpt:
+      "U kostela ve Staré Boleslavi padl kníže Václav rukou svého bratra Boleslava. Z oběti bratrovraždy se stal věčný patron české země.",
+    tags: ["přemyslovci", "náboženství", "tragédie"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Svatý_Václav",
+      "https://cs.wikipedia.org/wiki/Boleslav_I.",
+    ],
+    angle:
+      "Bratrovražda, z níž vyroste kult zakladatele národní identity. Fikce: napětí mezi bratry očima družiníka nebo kněze; kolik je politika a kolik legenda dotvořená po smrti.",
+    label: "V",
+  },
+  {
+    slug: "bitva-na-moravskem-poli",
+    title: "Bitva na Moravském poli a pád Přemysla Otakara II.",
+    region: "morava",
+    yearFrom: 1278,
+    yearTo: 1278,
+    excerpt:
+      "Král železný a zlatý, nejmocnější Přemyslovec, padl v bitvě proti Rudolfu Habsburskému. Konec snu o středoevropské říši.",
+    tags: ["přemyslovci", "válka", "politika"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Bitva_na_Moravském_poli",
+      "https://cs.wikipedia.org/wiki/Přemysl_Otakar_II.",
+    ],
+    angle:
+      "Největší vzestup i nejtvrdší pád jedním dnem — a začátek habsburského tématu. Fikce: očima českého rytíře v poraženém vojsku, nebo osiřelého mladého Václava II.",
+    label: "P",
+  },
+  {
+    slug: "vznik-opavskeho-knizectvi",
+    title: "Vznik Opavského knížectví",
+    region: "slezsko",
+    yearFrom: 1318,
+    yearTo: 1318,
+    excerpt:
+      "Jan Lucemburský povýšil Opavsko na samostatné vévodství pro potomky nemanželského syna Přemysla Otakara II. Zrodí se opavská větev Přemyslovců na pomezí Slezska.",
+    tags: ["středověk", "politika", "slezsko"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Opavské_knížectví",
+      "https://cs.wikipedia.org/wiki/Mikuláš_I._Opavský",
+    ],
+    angle:
+      "Levoboček krále zakládá vlastní dynastii ve Slezsku. Fikce: příběh Mikuláše, jehož původ ho vylučuje z trůnu, a přesto si vydobude vlastní zem — legitimita na slezské hranici Koruny.",
+    label: "O",
+  },
+  {
+    slug: "korunovace-karla-iv-cisarem",
+    title: "Korunovace Karla IV. císařem Svaté říše římské",
+    region: "cechy",
+    yearFrom: 1355,
+    yearTo: 1355,
+    excerpt:
+      "Český král Karel IV. byl v Římě korunován římským císařem. Praha se stala centrem celé Evropy a začala zlatá éra.",
+    tags: ["lucemburkové", "politika", "vrcholný středověk"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Karel_IV.",
+      "https://cs.wikipedia.org/wiki/Římská_jízda_Karla_IV.",
+    ],
+    angle:
+      "Vládce z Prahy usedá na nejvyšší trůn křesťanské Evropy. Fikce: očima člena doprovodu na nebezpečné cestě přes rozdělenou Itálii, kde na krále číhají jedy i vzbouřená města.",
+    label: "K",
+  },
+  {
+    slug: "upaleni-jana-husa",
+    title: "Upálení mistra Jana Husa v Kostnici",
+    region: "cechy",
+    yearFrom: 1415,
+    yearTo: 1415,
+    excerpt:
+      "Kazatel Jan Hus byl přes příslib bezpečí odsouzen koncilem a upálen. Jeho smrt zapálila celé české království.",
+    tags: ["husitství", "náboženství", "tragédie"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Jan_Hus",
+      "https://cs.wikipedia.org/wiki/Kostnický_koncil",
+    ],
+    angle:
+      "Člověk, který raději zemře, než by odvolal, a jeho smrt rozpoutá revoluci. Fikce: očima věrného průvodce Jana z Chlumu, který marně bojuje o jeho život a musí domů přivézt zprávu o popravě.",
+    label: "H",
+  },
+  {
+    slug: "bitva-na-vitkove",
+    title: "Bitva na Vítkově — zrození husitské legendy",
+    region: "cechy",
+    yearFrom: 1420,
+    yearTo: 1420,
+    excerpt:
+      "Hrstka husitů pod velením Jana Žižky odrazila obrovskou křížovou výpravu u Prahy. Sedláci s cepy porazili evropské rytířstvo.",
+    tags: ["husitství", "válka", "vojevůdci"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Bitva_na_Vítkově",
+      "https://cs.wikipedia.org/wiki/Jan_Žižka",
+    ],
+    angle:
+      "David proti Goliášovi — neurození ubrání kopec proti přesile a zrodí mýtus neporazitelného Žižky. Fikce: očima mladého cepníka na hradbě, nebo křižáka, který nechápe porážku od sedláků.",
+    label: "V",
+  },
+  {
+    slug: "bitva-u-mohace-ludvik-jagellonsky",
+    title: "Bitva u Moháče a smrt Ludvíka Jagellonského",
+    region: "cechy",
+    yearFrom: 1526,
+    yearTo: 1526,
+    excerpt:
+      "Mladý český a uherský král Ludvík Jagellonský zahynul na útěku z prohrané bitvy s Turky. Uvolněný trůn otevřel dveře Habsburkům na dlouhá staletí.",
+    tags: ["jagellonci", "válka", "politika"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Bitva_u_Moháče_(1526)",
+      "https://cs.wikipedia.org/wiki/Ludvík_Jagellonský",
+    ],
+    angle:
+      "Dvacetiletý král se utopí na útěku a jeho smrt promění dějiny střední Evropy na 400 let. Fikce: očima ovdovělé královny Marie nebo panoše, který ho viděl naposledy živého u řeky.",
+    label: "M",
+  },
+  {
+    slug: "rudolfuv-majestat",
+    title: "Rudolfův Majestát — zákon o náboženské svobodě",
+    region: "cechy",
+    yearFrom: 1609,
+    yearTo: 1609,
+    excerpt:
+      "Císař Rudolf II. podepsal listinu zaručující svobodu vyznání — na svou dobu ojedinělý zákon. O deset let později kvůli jeho porušení začne válka.",
+    tags: ["baroko", "náboženství", "politika"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Rudolfův_Majestát",
+      "https://cs.wikipedia.org/wiki/Rudolf_II.",
+    ],
+    angle:
+      "Nemocný, váhavý císař podepíše pod nátlakem stavů nejsvobodomyslnější zákon Evropy. Fikce: očima úředníka na Hradě mezi alchymisty a astronomy, ve dvoře, kde se míchá věda, magie a rozklad.",
+    label: "R",
+  },
+  {
+    slug: "prazska-defenestrace-1618",
+    title: "Druhá pražská defenestrace",
+    region: "cechy",
+    yearFrom: 1618,
+    yearTo: 1618,
+    excerpt:
+      "Rozezlení stavové vyhodili z oken Pražského hradu císařské místodržící. Pád do hradního příkopu odstartoval třicetiletou válku, jež zpustoší Evropu.",
+    tags: ["stavovské povstání", "politika", "třicetiletá válka"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Třetí_pražská_defenestrace",
+      "https://cs.wikipedia.org/wiki/Stavovské_povstání",
+    ],
+    angle:
+      "Jeden akt vzdoru u okna spustí nejkrvavější válku dějin — a místodržící přežijí pád. Fikce: očima písaře Fabricia, který letěl z okna s nimi, nebo šlechtice, jenž váhá, na kterou stranu se přidat.",
+    label: "D",
+  },
+  {
+    slug: "bitva-na-bile-hore",
+    title: "Bitva na Bílé hoře",
+    region: "cechy",
+    yearFrom: 1620,
+    yearTo: 1620,
+    excerpt:
+      "Za necelé dvě hodiny bylo rozhodnuto o osudu země na tři sta let. Stavovské vojsko podlehlo císařským a začala doba temna.",
+    tags: ["stavovské povstání", "válka", "tragédie"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Bitva_na_Bílé_hoře",
+      "https://cs.wikipedia.org/wiki/Stavovské_povstání",
+    ],
+    angle:
+      "Dvě hodiny, které zlomily zem na staletí. Fikce: očima obyčejného vojáka stavovské armády, který uteče z bojiště, nebo mladého 'zimního krále' Fridricha Falckého prchajícího z Prahy.",
+    label: "B",
+  },
+  {
+    slug: "staromestska-exekuce",
+    title: "Staroměstská exekuce — poprava 27 českých pánů",
+    region: "cechy",
+    yearFrom: 1621,
+    yearTo: 1621,
+    excerpt:
+      "Na Staroměstském náměstí bylo popraveno 27 vůdců stavovského povstání. Krvavá pomsta, jejíž hlavy pak visely na Mostecké věži deset let.",
+    tags: ["baroko", "tragédie", "politika"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Staroměstská_exekuce",
+      "https://cs.wikipedia.org/wiki/Jan_Mydlář",
+    ],
+    angle:
+      "Veřejná poprava celé politické elity národa jako výstraha. Fikce: nezvyklý úhel kata Jana Mydláře, který musel sťat lidi, jež mnohdy osobně znal — řemeslník smrti se svědomím.",
+    label: "S",
+  },
+  {
+    slug: "carodejnicke-procesy-velke-losiny",
+    title: "Čarodějnické procesy na Velkých Losinách",
+    region: "morava",
+    yearFrom: 1678,
+    yearTo: 1696,
+    excerpt:
+      "Inkvizitor Boblig z Edelstadtu rozjel na severní Moravě sérii procesů, které poslaly na hranici desítky nevinných lidí — včetně váženého děkana Lautnera.",
+    tags: ["baroko", "tragédie", "spravedlnost"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Čarodějnické_procesy_na_šumpersku",
+      "https://cs.wikipedia.org/wiki/Kryštof_Alois_Lautner",
+    ],
+    angle:
+      "Chamtivý fanatik promění strach ze zla ve výnosný stroj na majetek a smrt. Fikce: očima děkana Lautnera, který se snaží procesy zastavit a nakonec sám skončí na hranici.",
+    label: "C",
+  },
+  {
+    slug: "ztrata-slezska-marie-terezie",
+    title: "Ztráta Slezska Marií Terezií",
+    region: "slezsko",
+    yearFrom: 1740,
+    yearTo: 1742,
+    excerpt:
+      "Pruský král Fridrich II. vpadl bez vyhlášení války do bohatého Slezska a v první slezské válce ho většinu urval Habsburkům navždy. Koruně české zůstal jen zlomek.",
+    tags: ["marie terezie", "válka", "slezsko"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/První_slezská_válka",
+      "https://cs.wikipedia.org/wiki/Války_o_rakouské_dědictví",
+    ],
+    angle:
+      "Mladá panovnice sotva na trůnu ztrácí nejbohatší zem koruny kvůli přepadení souseda. Fikce: očima slezského měšťana v Opavě či Těšíně, jehož rodinu přes noc rozdělí nová hranice Prusko/Rakousko.",
+    label: "Z",
+  },
+  {
+    slug: "tolerancni-patent-josef-ii",
+    title: "Toleranční patent a zrušení nevolnictví Josefa II.",
+    region: "cechy",
+    yearFrom: 1781,
+    yearTo: 1781,
+    excerpt:
+      "Císař Josef II. jedním rokem povolil nekatolická vyznání a zrušil nevolnictví. Poddaní poprvé směli svobodně odejít, studovat i vzít se bez svolení pána.",
+    tags: ["osvícenství", "reformy", "svoboda"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Toleranční_patent",
+      "https://cs.wikipedia.org/wiki/Zrušení_nevolnictví",
+    ],
+    angle:
+      "Jeden podpis dá milionům lidí svobodu pohybu poprvé po staletích. Fikce: očima mladého poddaného, který jako první ve vsi smí odejít do města — a naráží na to, co svoboda opravdu obnáší.",
+    label: "J",
+  },
+  {
+    slug: "bitva-u-slavkova-austerlitz",
+    title: "Bitva u Slavkova — bitva tří císařů",
+    region: "morava",
+    yearFrom: 1805,
+    yearTo: 1805,
+    excerpt:
+      "Na moravských pláních u Slavkova se střetli tři císařové a Napoleon zde dosáhl svého nejskvělejšího vítězství. Jedna z nejslavnějších bitev světových dějin.",
+    tags: ["napoleonské války", "válka", "morava"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Bitva_u_Slavkova",
+      "https://cs.wikipedia.org/wiki/Napoleon_Bonaparte",
+    ],
+    angle:
+      "Světové dějiny se lámou na moravském poli mezi rybníky a mlhou. Fikce: očima moravského sedláka ze Slavkova, jehož ves válka převálcuje, nebo českého vojáka v rakouské armádě.",
+    label: "A",
+  },
+  {
+    slug: "slovansky-sjezd-1848",
+    title: "Slovanský sjezd a revoluce roku 1848 v Praze",
+    region: "cechy",
+    yearFrom: 1848,
+    yearTo: 1848,
+    excerpt:
+      "V bouřlivém roce národů se v Praze sešel Slovanský sjezd a vzápětí vypuklo povstání na barikádách. Národní obrození poprvé vyšlo do ulic.",
+    tags: ["národní obrození", "revoluce", "politika"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Slovanský_sjezd",
+      "https://cs.wikipedia.org/wiki/Revoluce_1848_v_Čechách",
+    ],
+    angle:
+      "Probuzený národ poprvé žádá vlastní hlas — a naráží na dělové koule na barikádách. Fikce: očima studenta, který jde od nadšených proslovů rovnou na barikádu a zažije, jak sen rozdrtí Windischgrätzova děla.",
+    label: "S",
+  },
+  {
+    slug: "zakladni-kamen-narodniho-divadla",
+    title: "Položení základního kamene Národního divadla",
+    region: "cechy",
+    yearFrom: 1868,
+    yearTo: 1868,
+    excerpt:
+      "Národ si sám na svou vlastní kulturu vybral peníze a položil základní kámen Národního divadla. „Národ sobě“ — chrám české kultury z darů obyčejných lidí.",
+    tags: ["národní obrození", "kultura", "architektura"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Národní_divadlo",
+      "https://cs.wikipedia.org/wiki/Generace_Národního_divadla",
+    ],
+    angle:
+      "Divadlo z drobných darů celého národa — a po dostavbě 1881 shoří, načež ho lidé znovu zaplatí. Fikce: očima chudé venkovanky, která přispěje pár krejcary a přijede se podívat na kámen se svým jménem.",
+    label: "N",
+  },
+  {
+    slug: "vznik-ceskoslovenska-1918",
+    title: "Vznik Československa",
+    region: "cechy",
+    yearFrom: 1918,
+    yearTo: 1918,
+    excerpt:
+      "Po pádu Rakouska-Uherska vyhlásili 28. října 1918 v Praze samostatnou republiku. Poprvé po 300 letech vlastní stát Čechů a Slováků.",
+    tags: ["1. republika", "politika", "stát"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Vznik_Československa",
+      "https://cs.wikipedia.org/wiki/Muži_28._října",
+    ],
+    angle:
+      "Národ získá vlastní stát bez jediného výstřelu, uprostřed euforie v ulicích. Fikce: očima jednoho z 'mužů 28. října', kteří museli přes noc zorganizovat převzetí státu, nebo Pražana strhávajícího rakouské orly.",
+    label: "R",
+  },
+  {
+    slug: "rozdeleni-tesinska",
+    title: "Rozdělení Těšínska mezi Československo a Polsko",
+    region: "slezsko",
+    yearFrom: 1919,
+    yearTo: 1920,
+    excerpt:
+      "Sedmidenní válka roku 1919 a rozhodnutí velmocí roku 1920 rozdělily Těšínsko podle řeky Olše — a přeťaly i samotné město Těšín napůl.",
+    tags: ["1. republika", "politika", "slezsko"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Československo-polský_spor_o_Těšínsko",
+      "https://cs.wikipedia.org/wiki/Sedmidenní_válka",
+    ],
+    angle:
+      "Dva spojenci proti sobě vytáhnou do války rok po vzniku a hranice rozřízne město i rodiny. Fikce: očima obyvatele Těšína, jehož dům zůstane na jednom břehu Olše a příbuzní na druhém, v cizí zemi.",
+    label: "T",
+  },
+  {
+    slug: "mnichovska-dohoda",
+    title: "Mnichovská dohoda",
+    region: "cechy",
+    yearFrom: 1938,
+    yearTo: 1938,
+    excerpt:
+      "Velmoci se v Mnichově bez účasti Československa dohodly odstoupit pohraničí Německu. „O nás bez nás“ — zrada, která zlomila první republiku.",
+    tags: ["mnichov", "politika", "tragédie"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Mnichovská_dohoda",
+      "https://cs.wikipedia.org/wiki/Zábor_českého_pohraničí",
+    ],
+    angle:
+      "Spojenci obětují demokratický stát, aby uklidnili Hitlera — a stejně přijde válka. Fikce: očima vojáka na dokonale opevněné hranici, který dostane rozkaz ustoupit bez boje.",
+    label: "M",
+  },
+  {
+    slug: "atentat-na-heydricha-lidice",
+    title: "Atentát na Heydricha a vyhlazení Lidic",
+    region: "cechy",
+    yearFrom: 1942,
+    yearTo: 1942,
+    excerpt:
+      "Českoslovenští parašutisté zabili v Praze zastupujícího říšského protektora Heydricha. Nacistická pomsta srovnala se zemí Lidice a zavraždila jejich muže.",
+    tags: ["protektorát", "odboj", "tragédie"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Operace_Anthropoid",
+      "https://cs.wikipedia.org/wiki/Vyhlazení_Lidic",
+    ],
+    angle:
+      "Jediný odvážný čin odboje a nepředstavitelně krutá kolektivní odplata. Fikce: očima parašutistů obklíčených v kryptě v Resslově ulici, kteří vědí, že nepřežijí, nebo lidické ženy vracející se do vsi, která už neexistuje.",
+    label: "A",
+  },
+  {
+    slug: "unorovy-prevrat-1948",
+    title: "Únorový převrat — komunisté přebírají moc",
+    region: "cechy",
+    yearFrom: 1948,
+    yearTo: 1948,
+    excerpt:
+      "Během únorové krize převzali komunisté veškerou moc ve státě. Začíná více než 40 let totality za železnou oponou.",
+    tags: ["komunismus", "politika", "totalita"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Únorový_převrat",
+      "https://cs.wikipedia.org/wiki/Klement_Gottwald",
+    ],
+    angle:
+      "Demokracie padá bez výstřelu během pár únorových dní, davem na Václavském náměstí. Fikce: očima nekomunistického ministra, který podal demisi a čeká, nebo studenta z pochodu na Hrad, který ještě věří v záchranu.",
+    label: "U",
+  },
+  {
+    slug: "prazske-jaro-invaze-1968",
+    title: "Pražské jaro a invaze vojsk Varšavské smlouvy",
+    region: "cechy",
+    yearFrom: 1968,
+    yearTo: 1968,
+    excerpt:
+      "Pokus o „socialismus s lidskou tváří“ ukončily v srpnu tanky pěti armád. Národ se bránil jen holýma rukama a otočenými cedulemi.",
+    tags: ["komunismus", "okupace", "politika"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Pražské_jaro",
+      "https://cs.wikipedia.org/wiki/Invaze_vojsk_Varšavské_smlouvy_do_Československa",
+    ],
+    angle:
+      "Krátká naděje na svobodu rozdrcená pásy tanků přes noc. Fikce: očima mladého člověka stojícího v srpnu 1968 před tankem, nebo hlasatele rozhlasu vysílajícího do poslední chvíle.",
+    label: "P",
+  },
+  {
+    slug: "sebeupaleni-jana-palacha",
+    title: "Sebeupálení Jana Palacha",
+    region: "cechy",
+    yearFrom: 1969,
+    yearTo: 1969,
+    excerpt:
+      "Student Jan Palach se na Václavském náměstí zapálil na protest proti rezignaci národa po okupaci. Živá pochodeň, která otřásla svědomím země.",
+    tags: ["komunismus", "odpor", "tragédie"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Jan_Palach",
+      "https://cs.wikipedia.org/wiki/Pochodeň_číslo_1",
+    ],
+    angle:
+      "Jeden mladý muž obětuje život, aby probudil rezignující národ. Fikce: očima spolužáka nebo sestry u jeho lůžka během tří dnů, kdy umírá — tíha rozhodnutí, které nešlo vzít zpět.",
+    label: "P",
+  },
+  {
+    slug: "sametova-revoluce-1989",
+    title: "Sametová revoluce",
+    region: "cechy",
+    yearFrom: 1989,
+    yearTo: 1989,
+    excerpt:
+      "Po brutálně rozehnané studentské demonstraci 17. listopadu se země zvedla a během několika týdnů svrhla komunistický režim. Bez násilí, se zvonícími klíči.",
+    tags: ["revoluce", "svoboda", "politika"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Sametová_revoluce",
+      "https://cs.wikipedia.org/wiki/17._listopad_1989",
+    ],
+    angle:
+      "Národ svrhne totalitu za pár týdnů jen cinkáním klíčů a generální stávkou. Fikce: očima studentky z průvodu na Národní třídě, kterou zbijí, a která pak sleduje, jak se z toho večera zrodí svoboda.",
+    label: "S",
+  },
+  {
+    slug: "rozdeleni-ceskoslovenska-1993",
+    title: "Rozdělení Československa",
+    region: "cechy",
+    yearFrom: 1993,
+    yearTo: 1993,
+    excerpt:
+      "K 1. lednu 1993 se Československo pokojně rozdělilo na Českou a Slovenskou republiku. Klidný rozchod dvou národů bez jediného výstřelu.",
+    tags: ["politika", "stát", "novodobé dějiny"],
+    factuality: "fact",
+    sources: [
+      "https://cs.wikipedia.org/wiki/Rozdělení_Československa",
+      "https://cs.wikipedia.org/wiki/Česko-slovenská_federativní_republika",
+    ],
+    angle:
+      "Společný stát dvou národů se rozejde v míru, přesto proti vůli většiny občanů. Fikce: očima rodiny s českým i slovenským kořenem, pro niž se hranice stane skutečnou.",
+    label: "R",
+  },
+];
+
+/** Drafty převedené na plné Story (body = excerpt, generovaný cover). */
+const CZ_DRAFTS: Story[] = CZ_DRAFT_SEEDS.map((d, i) => ({
+  id: `cz${i + 1}`,
+  title: d.title,
+  slug: d.slug,
+  countryCode: "CZE",
+  region: d.region,
+  yearFrom: d.yearFrom,
+  yearTo: d.yearTo,
+  excerpt: d.excerpt,
+  body: d.excerpt,
+  coverImage: cover(d.slug, d.label),
+  tags: d.tags,
+  factuality: d.factuality,
+  // Krátká úroveň splňuje bar → published (vidí čtenář); autor = Křehy.
+  status: "published",
+  author: { name: "Křehy" },
+  sources: d.sources,
+  angle: d.angle,
+}));
 
 export const STORIES: Story[] = [
   {
@@ -347,6 +965,9 @@ export const STORIES: Story[] = [
     coverImage: cover("CZE2", "🜋"),
     body: "Základní kámen Karlova mostu položil císař Karel IV. — podle pověsti — 9. července 1357 přesně v 5 hodin a 31 minut ráno. Tento okamžik tvoří vzestupnou a sestupnou řadu lichých čísel 1‑3‑5‑7‑9‑7‑5‑3‑1 (1357, 9. den, 7. měsíc, 5:31). Vzdělaný a pověrčivý panovník prý dbal na astrologii a nechal si termín vypočítat, aby most stál na věky. A stojí — na rozdíl od svého předchůdce, Juditina mostu, který vzala voda. K trvanlivosti měla podle nejslavnější české stavební legendy pomoci i malta: do vápna se prý přidávala vejce, tvaroh a víno, aby zdivo lépe drželo. Města po celé zemi posílala do Prahy vozy vajec; z Velvar prý dorazila vejce natvrdo uvařená, aby se cestou nerozbila. Most nese jméno Karla IV. až od 19. století — po staletí se mu říkalo prostě Kamenný nebo Pražský most.",
     tags: ["středověk", "architektura", "Karel IV.", "legendy"],
+    factuality: "fact",
+    status: "published",
+    author: { name: "Křehy" },
     media: "stories/cze-bridge-founding.mp4",
     mediaType: "video",
     mediaCredit: "AI ilustrace (storybook) · Příběhy historie",
@@ -458,6 +1079,255 @@ export const STORIES: Story[] = [
       },
     ],
   },
+
+  // ═══ MOCKUP „KRATŠÍ" (3 beaty) — Golem (pověst) ═══
+  // Placeholder média = existující soubory; reálné cíle viz docs/shotlist-golem.md.
+  {
+    id: "20",
+    title: "Golem rabbiho Löwa",
+    slug: "golem-rabbi-low",
+    countryCode: "CZE",
+    region: "cechy",
+    yearFrom: 1580,
+    yearTo: 1580,
+    excerpt:
+      "Podle pověsti stvořil rabbi Jehuda Löw z vltavské hlíny obřího ochránce ghetta — a musel ho zase umlčet, než se jeho síla vymkla.",
+    coverImage: cover("golem-rabbi-low", "G"),
+    body:
+      "Podle nejslavnější pražské pověsti stvořil rabbi Jehuda Löw ben Becalel z hlíny vltavského břehu obřího Golema, jehož oživil pergamenem s Božím jménem (šémem) vloženým do úst. Golem měl chránit židovské ghetto. Když se však jeho síla začala vymykat, musel ho rabín zbavit šému a proměnit zpět v hroudu hlíny — a tělo prý ukryl na půdě Staronové synagogy, kde podle pověsti leží dodnes. Příběh předjímá téma umělého života staletí předtím, než vzniklo slovo robot.",
+    tags: ["pověst", "Praha", "renesance"],
+    factuality: "legend",
+    status: "published",
+    author: { name: "Křehy" },
+    sources: [
+      "https://cs.wikipedia.org/wiki/Golem",
+      "https://cs.wikipedia.org/wiki/Jehuda_Liva_ben_Becalel",
+    ],
+    angle:
+      "Stvoření umělého člověka staletí před roboty a strach, co se stane, když se vymkne kontrole. Fikce: očima rabbiho učedníka, který zná tajemství oživení i děsivou cenu.",
+    media: "stories/cze-bridge-night.jpg", // PLACEHOLDER → cze-golem/03-hrozba.jpg
+    mediaCredit: "AI ilustrace (storybook) · Příběhy historie",
+    hero: {
+      media: "stories/cze-bridge-hero.mp4", // PLACEHOLDER → cze-golem/hero.mp4
+      mediaType: "video",
+      eyebrow: "Pražská pověst",
+    },
+    audio: {
+      // scaffold — soubory zatím neexistují (viz docs/shotlist-golem.md)
+      music: {
+        crossfadeMs: 800,
+        intro: "stories/cze-golem/loop-intro.ogg",
+        loops: {
+          mystic: "stories/cze-golem/loop-mystic.ogg",
+          night: "stories/cze-golem/loop-night.ogg",
+        },
+      },
+      voiceover: {
+        perBeat: [
+          "stories/cze-golem/vo-01.mp3", // rabín
+          "stories/cze-golem/vo-02.mp3", // šém / oživení
+          null, // flip — bez vypravěče
+        ],
+      },
+      sfx: [
+        { src: "stories/cze-golem/sfx-clay-rise.ogg", trigger: { on: "beatEnter", beat: 1 } },
+        { src: "stories/sfx/page-flip.ogg", trigger: { on: "flip" }, gain: 0.6 },
+      ],
+    },
+    beats: [
+      {
+        kind: "scene",
+        media: "stories/cze-charles-iv-green.jpg", // PLACEHOLDER → cze-golem/01-rabi-green.png
+        chroma: true,
+        title: "Rabi Jehuda Löw",
+        text: "Učený rabín a znalec kabaly, který nad Prahou hledal způsob, jak ochránit své lidi. Vltavská hlína a tajemství Božího jména mu měly dát strážce.",
+        mood: "mystic",
+      },
+      {
+        kind: "scene",
+        media: "stories/cze-astrolabe.mp4", // PLACEHOLDER → cze-golem/02-oziveni.mp4
+        mediaType: "video",
+        title: "Šém v ústech",
+        text: "Rabín vložil obrovi do úst pergamen s posvátným slovem — a hliněná socha se pohnula. Golem procitl, aby střežil ghetto.",
+        credit: "AI ilustrace (storybook)",
+        mood: "mystic",
+      },
+      {
+        kind: "flip",
+        front: "Věděli jste, jak se Golem zastavil?",
+        back: "Prý stačilo vyjmout mu z úst šém — a obr se změnil zpět v hroudu hlíny. Podle pověsti dodnes leží na půdě Staronové synagogy.",
+        mood: "night",
+      },
+    ],
+  },
+
+  // ═══ MOCKUP „STŘEDNÍ" (6 beatů) — Cyril a Metoděj (fakt, Morava) ═══
+  // Placeholder média = existující soubory; reálné cíle viz docs/shotlist-cyril.md.
+  {
+    id: "21",
+    title: "Cyril a Metoděj na Velké Moravě",
+    slug: "cyril-a-metodej-velka-morava",
+    countryCode: "CZE",
+    region: "morava",
+    yearFrom: 863,
+    yearTo: 863,
+    excerpt:
+      "Kníže Rastislav si z daleké Byzance vyžádal učitele. Dva bratři ze Soluně přinesli písmo, srozumitelnou bohoslužbu a základ slovanské vzdělanosti.",
+    coverImage: cover("cyril-a-metodej-velka-morava", "C"),
+    body:
+      "Roku 863 dorazili na pozvání knížete Rastislava na Velkou Moravu byzantští věrozvěstové Konstantin (později mnich Cyril) a jeho bratr Metoděj. Přinesli nové písmo — hlaholici — a bohoslužbu ve staroslověnštině, jazyce, jemuž slovanští obyvatelé rozuměli. Postavili se přitom sporu s franským duchovenstvem a slovanskou liturgii obhájili až v Římě. Jejich dílo položilo základ slovanské vzdělanosti; z hlaholice později vznikla cyrilice a z ní azbuka. Oba bratři jsou dodnes uctíváni jako spolupatroni Evropy.",
+    tags: ["raný středověk", "Velká Morava", "písmo"],
+    factuality: "fact",
+    status: "published",
+    author: { name: "Křehy" },
+    sources: [
+      "https://cs.wikipedia.org/wiki/Cyril_a_Metoděj",
+      "https://cs.wikipedia.org/wiki/Velká_Morava",
+    ],
+    angle:
+      "Dva vzdělanci mění kulturu národa jazykem a abecedou. Fikce: očima mladého žáka, který se první učí hlaholici, nebo skrze zápas o to, čí liturgie zvítězí — Řím, nebo Byzanc.",
+    media: "stories/cze-bridge-founding.mp4", // PLACEHOLDER → cze-cyril/01-rastislav.mp4
+    mediaType: "video",
+    mediaCredit: "AI ilustrace (storybook) · Příběhy historie",
+    hero: {
+      media: "stories/cze-bridge-hero.mp4", // PLACEHOLDER → cze-cyril/hero.mp4
+      mediaType: "video",
+      eyebrow: "Zrození písma",
+    },
+    audio: {
+      // scaffold — soubory zatím neexistují (viz docs/shotlist-cyril.md)
+      music: {
+        crossfadeMs: 800,
+        intro: "stories/cze-cyril/loop-intro.ogg",
+        loops: {
+          dawn: "stories/cze-cyril/loop-dawn.ogg",
+          mystic: "stories/cze-cyril/loop-mystic.ogg",
+          day: "stories/cze-cyril/loop-day.ogg",
+        },
+      },
+      voiceover: {
+        perBeat: [
+          "stories/cze-cyril/vo-01.mp3", // Rastislavova prosba
+          "stories/cze-cyril/vo-02.mp3", // bratři ze Soluně
+          "stories/cze-cyril/vo-03.mp3", // hlaholice
+          null, // flip — bez vypravěče
+          "stories/cze-cyril/vo-05.mp3", // liturgie / spor / Řím (scrub)
+          "stories/cze-cyril/vo-06.mp3", // odkaz
+        ],
+      },
+      sfx: [
+        { src: "stories/cze-cyril/sfx-quill.ogg", trigger: { on: "beatEnter", beat: 2 }, gain: 0.7 },
+        { src: "stories/cze-cyril/sfx-bell.ogg", trigger: { on: "beatEnter", beat: 5 } },
+        { src: "stories/sfx/page-flip.ogg", trigger: { on: "flip" }, gain: 0.6 },
+      ],
+    },
+    beats: [
+      {
+        kind: "scene",
+        media: "stories/cze-bridge-founding.mp4", // PLACEHOLDER → cze-cyril/01-rastislav.mp4
+        mediaType: "video",
+        title: "Prosba knížete Rastislava",
+        text: "Moravský kníže Rastislav toužil po učitelích, kteří by jeho lidu hlásali víru v jazyce, jemuž rozumí. Vyslal poselství až do Cařihradu.",
+        credit: "AI ilustrace (storybook)",
+        mood: "dawn",
+      },
+      {
+        kind: "scene",
+        media: "stories/cze-charles-iv-green.jpg", // PLACEHOLDER → cze-cyril/02-bratri-green.png
+        chroma: true,
+        title: "Bratři ze Soluně",
+        text: "Konstantin — učenec zvaný Filosof — a jeho bratr Metoděj. Slovanské nářečí znali od dětství a byli připraveni na dalekou cestu na sever.",
+        mood: "mystic",
+      },
+      {
+        kind: "scene",
+        media: "stories/cze-astrolabe.mp4", // PLACEHOLDER → cze-cyril/03-hlaholice.mp4
+        mediaType: "video",
+        title: "Nové písmo — hlaholice",
+        text: "Aby zapsali slovanská slova, sestavil Konstantin úplně novou abecedu. Poprvé měla řeč našich předků svá vlastní písmena.",
+        credit: "AI ilustrace (storybook)",
+        mood: "mystic",
+      },
+      {
+        kind: "flip",
+        front: "Odkud se vzala azbuka?",
+        back: "Z hlaholice později žáci obou bratří vytvořili jednodušší cyrilici — pojmenovanou po Cyrilovi. Z ní vzešla azbuka, kterou dnes píše půl světa.",
+        mood: "mystic",
+      },
+      {
+        kind: "scrub",
+        media: "stories/cze-bridge-eggs.mp4", // PLACEHOLDER → cze-cyril/05-liturgie.mp4
+        credit: "AI ilustrace (storybook)",
+        mood: "day",
+        captions: [
+          {
+            at: 0,
+            title: "Bohoslužba, které je rozumět",
+            text: "Bratři sloužili mši ve staroslověnštině — lidé poprvé rozuměli každému slovu.",
+          },
+          {
+            at: 0.45,
+            title: "Spor s franskými kněžími",
+            text: "Latinští duchovní je obvinili z kacířství. Čí liturgie na Moravě zvítězí?",
+          },
+          {
+            at: 0.8,
+            title: "Obhajoba v Římě",
+            text: "Bratři se vydali obhájit slovanskou bohoslužbu až před papeže — a uspěli.",
+          },
+        ],
+      },
+      {
+        kind: "scene",
+        media: "stories/cze-bridge-workers.jpg", // PLACEHOLDER → cze-cyril/06-odkaz.jpg
+        title: "Odkaz, který přetrval",
+        text: "I když byli žáci po Metodějově smrti z Moravy vyhnáni, písmo a víra se rozšířily k jižním i východním Slovanům. Dílo bratří přežilo staletí.",
+        credit: "AI ilustrace (storybook)",
+        mood: "dawn",
+      },
+    ],
+  },
+
+  // ═══ UKÁZKOVÉ DRAFTY (rozpracované, jen ve Studiu — čtenář je nevidí) ═══
+  {
+    id: "d1",
+    title: "Zlatá bula sicilská",
+    slug: "zlata-bula-sicilska",
+    countryCode: "CZE",
+    region: "cechy",
+    yearFrom: 1212,
+    yearTo: 1212,
+    excerpt:
+      "Přemysl Otakar I. získal listinu, která dědičně povýšila český kníže­cí stolec na království. (rozpracováno)",
+    coverImage: cover("zlata-bula-sicilska", "Z"),
+    body: "Rozpracovaný draft — čeká na doladění a média.",
+    tags: ["přemyslovci", "politika"],
+    factuality: "fact",
+    status: "draft",
+    author: { name: "Křehy" },
+    sources: ["https://cs.wikipedia.org/wiki/Zlatá_bula_sicilská"],
+  },
+  {
+    id: "d2",
+    title: "Bitva u Lipan",
+    slug: "bitva-u-lipan",
+    countryCode: "CZE",
+    region: "cechy",
+    yearFrom: 1434,
+    yearTo: 1434,
+    excerpt:
+      "Střet, který ukončil husitské války — umírnění porazili radikální polní vojska. (rozpracováno)",
+    coverImage: cover("bitva-u-lipan", "L"),
+    body: "Rozpracovaný draft — čeká na doladění a média.",
+    tags: ["husitství", "válka"],
+    factuality: "fact",
+    status: "draft",
+    author: { name: "Křehy" },
+    sources: ["https://cs.wikipedia.org/wiki/Bitva_u_Lipan"],
+  },
+
+  // ─── České DRAFTY (nápady z rešerše) — naplňují časovou osu pro design ───
+  ...CZ_DRAFTS,
 ];
 
 export default STORIES;

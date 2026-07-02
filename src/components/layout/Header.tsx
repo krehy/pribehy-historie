@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Compass } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSession, type Role } from "@/context/session";
+
+const ROLE_LABEL: Record<Role, string> = { reader: "čtenář", author: "autor", admin: "admin" };
 
 /** Položky navigace — stejná slovní zásoba jako patička. */
 const NAV = [
@@ -47,7 +50,19 @@ function BrandMark({ big = false }: { big?: boolean }) {
 
 export function Header() {
   const { pathname } = useLocation();
+  const { user } = useSession();
   const [open, setOpen] = useState(false);
+
+  // Domovská základna přihlášeného uživatele podle role.
+  const homeBase =
+    user?.role === "admin" ? "/admin" : user?.role === "author" ? "/studio" : "/profile";
+
+  // Odkazy autorské zóny (dole v navmenu), gated podle role.
+  const zoneLinks: { to: string; label: string }[] = [];
+  if (user?.role === "author" || user?.role === "admin") zoneLinks.push({ to: "/studio", label: "Studio" });
+  if (user?.role === "admin") zoneLinks.push({ to: "/admin", label: "Administrace" });
+  if (user) zoneLinks.push({ to: "/profile", label: "Můj profil" });
+  if (!user || user.role === "reader") zoneLinks.push({ to: "/become-author", label: "Stát se autorem" });
 
   // Zamknout scroll stránky, když je menu otevřené; Escape zavírá.
   useEffect(() => {
@@ -72,15 +87,36 @@ export function Header() {
           </Link>
 
           <div className="ml-auto flex items-center gap-3 md:gap-4">
-            <Link
-              to="/"
-              className={cn(
-                "hidden rounded-full bg-sun px-6 py-2.5 font-display text-sm font-bold text-ink shadow-sticker transition-transform hover:-translate-y-0.5 sm:inline-block",
-                open && "pointer-events-none opacity-0"
-              )}
-            >
-              Prozkoumat mapu
-            </Link>
+            {user ? (
+              <Link
+                to={homeBase}
+                className={cn(
+                  "hidden items-center gap-2 rounded-full border-2 border-ink/10 bg-paper-light py-1.5 pl-1.5 pr-4 transition-transform hover:-translate-y-0.5 sm:flex",
+                  open && "pointer-events-none opacity-0"
+                )}
+                aria-label={`${user.name} — ${ROLE_LABEL[user.role]}`}
+              >
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-sun font-display text-sm font-bold text-ink">
+                  {user.name[0]}
+                </span>
+                <span className="leading-tight">
+                  <span className="block font-display text-sm font-bold text-ink">{user.name}</span>
+                  <span className="block font-serif text-[11px] italic text-ink-soft">
+                    {ROLE_LABEL[user.role]}
+                  </span>
+                </span>
+              </Link>
+            ) : (
+              <Link
+                to="/become-author"
+                className={cn(
+                  "hidden rounded-full bg-sun px-6 py-2.5 font-display text-sm font-bold text-ink shadow-sticker transition-transform hover:-translate-y-0.5 sm:inline-block",
+                  open && "pointer-events-none opacity-0"
+                )}
+              >
+                Přihlásit se
+              </Link>
+            )}
             <button
               type="button"
               className="ph-burger"
@@ -123,6 +159,24 @@ export function Header() {
               );
             })}
           </nav>
+
+          {zoneLinks.length > 0 && (
+            <div className="mt-7 flex flex-col items-start gap-2 border-t border-ink/10 pt-5">
+              <span className="mb-1 font-serif text-sm italic text-ink-soft/70">
+                {user ? `Přihlášen jako ${user.name} · ${ROLE_LABEL[user.role]}` : "Autorská zóna"}
+              </span>
+              {zoneLinks.map((z) => (
+                <Link
+                  key={z.to}
+                  to={z.to}
+                  onClick={() => setOpen(false)}
+                  className="font-display text-xl font-extrabold uppercase tracking-tight text-ink transition-colors hover:text-sun-deep"
+                >
+                  {z.label}
+                </Link>
+              ))}
+            </div>
+          )}
 
           <div className="ph-nav-foot">
             <Link

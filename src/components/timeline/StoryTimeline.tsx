@@ -130,13 +130,13 @@ export function StoryTimeline({ countryName, stories, onClose }: StoryTimelinePr
           transition={{ type: "spring", stiffness: 260, damping: 32 }}
         >
           {/* linka osy */}
-          <div className="absolute left-0 right-0 top-[68%] h-[2px] -translate-y-1/2 bg-paper-light/15" />
+          <div className="absolute left-0 right-0 top-[84%] h-[2px] -translate-y-1/2 bg-paper-light/15" />
 
           {/* značky zkrácených mezer */}
           {layout.gaps.map((g, i) => (
             <div
               key={`gap-${i}`}
-              className="absolute top-[68%] -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-black/30 px-2 py-0.5 font-sans text-[10px] text-paper-light/40"
+              className="absolute top-[84%] -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-black/30 px-2 py-0.5 font-sans text-[10px] text-paper-light/40"
               style={{ left: g.x }}
             >
               … {g.years} let
@@ -154,7 +154,7 @@ export function StoryTimeline({ countryName, stories, onClose }: StoryTimelinePr
                 onMouseEnter={() => setActive(i)}
                 onFocus={() => setActive(i)}
                 onClick={() => setActive(i)}
-                className="absolute top-[68%] z-10 -translate-x-1/2 -translate-y-full pb-3 transition-opacity duration-200"
+                className="absolute top-[84%] z-10 -translate-x-1/2 -translate-y-full pb-3 transition-opacity duration-200"
                 style={{ left: cx, opacity: isActive ? 1 : 0.55 }}
               >
                 <div
