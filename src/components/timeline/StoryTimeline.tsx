@@ -286,13 +286,6 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
           ))}
         </motion.div>
 
-        {/* popisek pásu = epochy (fixní, nescrolluje) */}
-        {eraSegs.length > 0 && (
-          <div className="pointer-events-none absolute left-3 top-[80%] z-20 rounded bg-black/55 px-2 py-0.5 font-serif text-[10px] italic text-paper-light/55 backdrop-blur-sm">
-            epocha
-          </div>
-        )}
-
         {/* šipky (desktop) */}
         {active > 0 && (
           <button
