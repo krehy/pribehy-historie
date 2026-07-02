@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   AnimatePresence,
   animate,
@@ -9,9 +9,9 @@ import {
   useTransform,
   type MotionValue,
 } from "framer-motion";
-import { BookOpen, ChevronLeft, ChevronRight, Play } from "lucide-react";
+import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import type { Story } from "@/data/stories";
-import { formatRange, formatYear } from "@/lib/history";
+import { formatYear } from "@/lib/history";
 import { type Era } from "@/data/eras";
 
 const BASE = import.meta.env.BASE_URL;
@@ -131,7 +131,7 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
 
   // Rozbalená epocha (jen desktop, po usazení) → její zóna se rozšíří na plné karty.
   const CARD_STRIDE = 116;
-  const expanded = !isMobile && !moving ? active : -1;
+  const expanded = !moving && items[active]?.epoch ? active : -1;
 
   // ZÁKLADNÍ rozložení (fyzika osy — scroll/snap/drag). Nezávisí na rozbalení!
   const layout = useMemo(() => {
@@ -295,7 +295,6 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
     });
   }, [eras, items, renderCenters, isMobile]);
 
-  const activeItem = items[active];
   const launch = (slug: string) => navigate(`/pribeh/${slug}`);
   const dragMin = vw / 2 - (layout.centers[items.length - 1] ?? 0);
   const dragMax = vw / 2;
@@ -310,7 +309,7 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
       </div>
 
       {/* ---------- PÁS ---------- */}
-      <div ref={stripRef} className="relative h-[58%] shrink-0 overflow-hidden">
+      <div ref={stripRef} className="relative h-full overflow-hidden">
         <div className="pointer-events-none absolute left-1/2 top-0 z-20 h-full w-px -translate-x-1/2 bg-sun/25" />
         <div className="pointer-events-none absolute left-1/2 top-2 z-20 -translate-x-1/2">
           <div className="h-0 w-0 border-x-[7px] border-t-[9px] border-x-transparent border-t-sun" />
@@ -327,49 +326,16 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
           onDragStart={() => (movedRef.current = true)}
         >
           {/* linka osy */}
-          <div className="absolute left-0 right-0 top-[70%] h-[2px] -translate-y-1/2 bg-paper-light/15" />
+          <div className="absolute left-0 right-0 top-[55%] h-[2px] -translate-y-1/2 bg-paper-light/15" />
 
           {/* pás epoch — mobil-aktivní = malé kartičky; jinak název/roky (aktivní zvýrazněn) */}
           {bandSegs.map((b) => {
             const on = b.i === active;
-            if (on && isMobile) {
-              const flag = items[b.i]?.slug;
-              return (
-                <div
-                  key={`band-${b.i}`}
-                  className="absolute top-[73%] z-[11] flex h-[22%] items-center gap-1 overflow-hidden rounded-lg border border-sun/60 px-1 shadow-[0_0_18px_rgba(244,196,48,.35)] transition-all duration-300"
-                  style={{ left: b.left, width: b.width, background: b.tint }}
-                >
-                  {b.stories.map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        launch(s.slug);
-                      }}
-                      title={`${s.title} · ${formatYear(s.yearFrom)}`}
-                      className={
-                        "relative h-[88%] min-w-0 flex-1 overflow-hidden rounded-md border transition-transform hover:z-10 hover:scale-105 " +
-                        (s.slug === flag ? "border-sun ring-1 ring-sun/60" : "border-white/15")
-                      }
-                    >
-                      <div
-                        className="absolute inset-0 bg-cover bg-center"
-                        style={{ backgroundImage: `url("${s.coverImage}")` }}
-                      />
-                      <span className="absolute inset-x-0 bottom-0 truncate bg-black/50 px-0.5 text-center text-[7px] font-bold text-paper-light/85">
-                        {formatYear(s.yearFrom)}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              );
-            }
             return (
               <div
                 key={`band-${b.i}`}
                 className={
-                  "absolute top-[78%] flex h-[14%] items-center justify-between gap-1 overflow-hidden rounded-md border px-1.5 transition-all duration-300 " +
+                  "absolute top-[60%] flex h-[14%] items-center justify-between gap-1 overflow-hidden rounded-md border px-1.5 transition-all duration-300 " +
                   (on ? "border-sun/70 opacity-100 shadow-[0_0_14px_rgba(244,196,48,.35)]" : "border-white/5 opacity-55")
                 }
                 style={{ left: b.left, width: b.width, background: b.tint }}
@@ -395,7 +361,7 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
           {layout.gaps.map((g, i) => (
             <div
               key={`gap-${i}`}
-              className="absolute top-[70%] -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-black/30 px-2 py-0.5 font-sans text-[10px] text-paper-light/40"
+              className="absolute top-[55%] -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-black/30 px-2 py-0.5 font-sans text-[10px] text-paper-light/40"
               style={{ left: g.x }}
             >
               … {g.years} let
@@ -446,86 +412,6 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
         )}
       </div>
 
-      {/* ---------- SPODNÍ ČÁST ---------- */}
-      <div className="relative flex-1 overflow-hidden border-t border-paper-light/10 bg-black/25">
-        {activeItem?.epoch ? (
-          /* Grid příběhů aktuální epochy */
-          <div className="flex h-full flex-col px-4 py-3 md:px-6">
-            <div className="mb-2 flex items-baseline gap-2">
-              <h3 className="font-display text-sm font-bold uppercase tracking-wide text-sun">{activeItem.epoch}</h3>
-              <span className="font-serif text-xs italic text-paper-light/50">
-                {activeItem.epochRange} · {activeItem.stories.length}{" "}
-                {activeItem.stories.length === 1 ? "příběh" : activeItem.stories.length <= 4 ? "příběhy" : "příběhů"}
-              </span>
-            </div>
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeItem.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.28, ease: "easeOut" }}
-                className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden"
-                style={{ scrollbarWidth: "thin" }}
-              >
-                <div className="flex h-full gap-3 pb-1">
-                  {activeItem.stories.map((s) => (
-                    <Link
-                      key={s.id}
-                      to={`/pribeh/${s.slug}`}
-                      className={
-                        "group flex h-full w-36 shrink-0 flex-col overflow-hidden rounded-xl border-2 bg-paper-light/5 transition-transform hover:-translate-y-1 " +
-                        (s.slug === activeItem.slug ? "border-sun" : "border-paper-light/15")
-                      }
-                    >
-                      <div className="relative flex-1 bg-cover bg-center" style={{ backgroundImage: `url("${s.coverImage}")` }}>
-                        <span className="absolute left-1.5 top-1.5 rounded bg-black/50 px-1.5 py-0.5 text-[9px] font-bold text-paper-light/80 backdrop-blur-sm">
-                          {formatYear(s.yearFrom)}
-                        </span>
-                      </div>
-                      <div className="shrink-0 p-2">
-                        <div className="line-clamp-2 font-display text-[11px] font-bold leading-tight text-paper-light group-hover:text-sun">
-                          {s.title}
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        ) : (
-          /* Fallback (bez epoch): jeden příspěvek */
-          <AnimatePresence mode="wait">
-            {activeItem && (
-              <motion.div
-                key={activeItem.id}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.35, ease: "easeOut" }}
-                className="mx-auto flex h-full max-w-4xl flex-col justify-center px-[clamp(24px,6vw,80px)] py-4"
-              >
-                <div className="font-serif text-sm italic text-paper-light/60">
-                  {formatRange(activeItem.stories[0].yearFrom, activeItem.stories[0].yearTo)} · {countryName}
-                </div>
-                <h2 className="mt-1 font-display text-2xl font-extrabold leading-tight md:text-3xl">{activeItem.title}</h2>
-                <p className="mt-2 line-clamp-2 max-w-2xl font-sans text-sm text-paper-light/80 md:text-base">
-                  {activeItem.stories[0].excerpt}
-                </p>
-                <div className="mt-4">
-                  <Link
-                    to={`/pribeh/${activeItem.slug}`}
-                    className="inline-flex items-center gap-2 rounded-full bg-sun px-5 py-2.5 font-display text-sm font-bold text-ink shadow-sticker transition-transform hover:-translate-y-0.5"
-                  >
-                    <BookOpen className="h-4 w-4" /> Číst celý příběh
-                  </Link>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        )}
-      </div>
     </div>
   );
 }
@@ -538,7 +424,7 @@ function EpochRow({ item, cx, onLaunch }: { item: TItem; cx: number; onLaunch: (
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
       className="absolute z-20 transition-[left] duration-300"
-      style={{ left: cx, bottom: "30%", transformOrigin: "center bottom" }}
+      style={{ left: cx, bottom: "45%", transformOrigin: "center bottom" }}
     >
       <div className="flex -translate-x-1/2 items-end gap-2">
         {item.stories.map((s) => (
@@ -644,7 +530,7 @@ function LensCard({
   return (
     <motion.div
       onClick={() => (isActive ? onLaunch(current.slug) : onSelect())}
-      className="absolute top-[70%] z-10 -translate-x-1/2 -translate-y-full cursor-pointer pb-3 transition-[transform,left] duration-300 hover:scale-[1.04]"
+      className="absolute top-[55%] z-10 -translate-x-1/2 -translate-y-full cursor-pointer pb-3 transition-[transform,left] duration-300 hover:scale-[1.04]"
       style={{ left: cx, opacity }}
     >
       <motion.div

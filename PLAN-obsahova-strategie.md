@@ -348,6 +348,24 @@ vše optimalizované pro dotyk. Cíl: **autoři si stáhnou PWA** (instalovateln
   color) + service worker (offline shell, cache assetů) → instalace na plochu. Cíl hlavně pro autory.
 - **Creator/onboarding na mobilu:** sken obličeje + ≥3 fotky = přirozené přes mobilní kameru.
 
+## 9h. Big Picture / TV režim — 10-foot UI (rozhodnuto 2026-07-02)
+
+Insight: appka přirozeně roste do **„Big Picture" režimu à la Steam** — optimalizovaného
+pro **TV / smart TV** (10-foot UI), vedle mobilu a desktopu. Epochová osa (velké karty,
+lupa/fokus, momentum, playhead, Play na fokusu) je fakticky coverflow pro obývák.
+
+**Principy, podle kterých se rozhodovat:**
+- **Fokus-driven navigace, ne hover** (TV nemá myš): D-pad / dálkový ovladač / gamepad posouvá
+  fokus, Enter = spustit. Hover-scrub jsme už zrušili → správný směr. Fokus model app-wide.
+- **Velké terče, velká typografie, hodně prostoru**; landscape-first horizontální filmstripy.
+- **TV-safe okraje** (overscan ~5 %), ať UI neuteče za rámeček.
+- **Výkon na slabých TV čipech** → „lite mód" (vypnuté drahé SVG filtry) klíčový i tady.
+- **Ambient hudba/zvuk** = obývák-friendly.
+- **Vstupy (backlog):** mapování šipek/Enter už je; přidat gamepad API + dálkový ovladač (key codes),
+  spatial navigation (fokus mezi prvky), viditelné fokus stavy.
+
+Tři cílové kontexty: **mobil (touch) · desktop (myš/klávesnice) · TV (dálkový/gamepad, 10-foot).**
+
 ## 10. Deferred / backlog
 
 - Admin/operátor režim, authoring pipeline, `draft→published` schvalovací brána (fáze 2).
