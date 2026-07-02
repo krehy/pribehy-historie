@@ -379,6 +379,29 @@ Tři cílové kontexty: **mobil (touch) · desktop (myš/klávesnice) · TV (dá
 - Model: článek ↔ interaktivní verze provázat (sdílený slug/`interactiveSlug`), ať web ví, že
   alternativa existuje.
 
+## 9j. Interakční model osy — GRILL (rozpracováno 2026-07-02, dokončit příště)
+
+Cíl: zafixovat JEDEN konzistentní model, ať se osa přestane přepisovat.
+
+**Rozhodnuto:**
+- **Dvě úrovně: epochy ↔ příběhy** (model „a"). Výchozí = kostky epoch; **rozklik epochy
+  → její příběhy** (drill-down). Zpět = ‹ Epochy / Esc / Zpět (TV).
+- **Vstup do epochy = klik rovnou vejde** (epocha = složka → otevřít; příběh = list →
+  klik jen centruje, otevírá se tlačítkem v náhledu). *(čekalo na finální potvrzení)*
+
+**Otevřené otázky (pokračovat odtud):**
+- Q3: živé pozadí na OBOU úrovních? (epocha = bg vlajkového příběhu; příběh = bg
+  vycentrovaného/hoverovaného) — plynulý crossfade.
+- Q4: klik — epocha vejde, příběh centruje; otevření jen tlačítkem (potvrdit).
+- Q5: článek vs interaktivní (odznak; „Pro tuto událost zatím neexistují žádné příběhy" +
+  Přečíst článek vs Spustit příběh) — potvrzeno v zásadě.
+- Q6: mobil / desktop / TV rozdíly (10-foot UI, fokus-driven, žádný hover na TV).
+
+**Stav kódu (POZOR):** aktuálně nasazený `StoryTimeline` je **plochý story-filmstrip**
+(model „b"), který NENÍ cílový — příště **přestavět na epochy-first (a)** dle výše.
+Živé pozadí + článek/interaktivní odznak + oprava problikávajících rohů (mask/backface na
+kartě) = užitečné, přenést do nové verze.
+
 ## 10. Deferred / backlog
 
 - Admin/operátor režim, authoring pipeline, `draft→published` schvalovací brána (fáze 2).

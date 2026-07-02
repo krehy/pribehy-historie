@@ -442,6 +442,10 @@ function StoryCard({
           scale,
           borderColor: isActive ? "#f4c430" : "rgba(253,250,240,.25)",
           transformOrigin: "bottom center",
+          // Fix problikávajících rohů při scale (zaoblený overflow + transform).
+          WebkitMaskImage: "-webkit-radial-gradient(white, black)",
+          backfaceVisibility: "hidden",
+          willChange: "transform",
         }}
       >
         {media.video ? (
