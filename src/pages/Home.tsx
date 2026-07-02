@@ -62,7 +62,7 @@ export default function Home() {
         setFocus("timeline");
         return;
       }
-      revealTimer.current = window.setTimeout(() => setTimelineOpen(true), 1150);
+      revealTimer.current = window.setTimeout(() => setTimelineOpen(true), 550);
     } else {
       setTimelineOpen(false);
     }
@@ -76,7 +76,7 @@ export default function Home() {
         setFocus("timeline");
         return;
       }
-      revealTimer.current = window.setTimeout(() => setTimelineOpen(true), 900);
+      revealTimer.current = window.setTimeout(() => setTimelineOpen(true), 350);
     } else {
       setTimelineOpen(false);
     }
@@ -197,7 +197,7 @@ export default function Home() {
             initial={{ y: "100%" }}
             animate={{ y: "0%" }}
             exit={{ y: "100%" }}
-            transition={{ duration: 0.7, ease: EASE }}
+            transition={{ duration: 0.5, ease: EASE }}
             onMouseEnter={() => canHover && setFocus("timeline")}
           >
             <motion.div
