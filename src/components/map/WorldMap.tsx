@@ -103,6 +103,16 @@ export function WorldMap({
   const [hoveredCountry, setHoveredCountry] = useState<{ name: string; hasStories: boolean } | null>(null);
 
   const [view, setView] = useState<View>(DEFAULT_VIEW);
+  // Lite mód (mobil / dotykové) — vypíná drahé SVG filtry (rough-edges se jinak
+  // přepočítává každý snímek při zoomu → sekání).
+  const [lite, setLite] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px), (pointer: coarse)");
+    const on = () => setLite(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
   const viewRef = useRef<View>(DEFAULT_VIEW);
   const rafRef = useRef<number>(0);
   /** true = změnu světadílu vyvolalo tažení mapy → nepřecentrovávat. */
@@ -407,7 +417,7 @@ export function WorldMap({
 
               return (
                 <>
-                  <g filter={mapTheme.roughEdges.enabled ? "url(#rough-edges)" : undefined}>
+                  <g filter={mapTheme.roughEdges.enabled && !lite ? "url(#rough-edges)" : undefined}>
                     {/* ----- OBRYSY SVĚTADÍLŮ ----- */}
                     {prepared.continentFeatures.map(({ id, feature: cf }) => {
                       const isActive = id === selectedContinent;
