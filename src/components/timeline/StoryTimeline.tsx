@@ -12,7 +12,7 @@ import {
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import type { Story } from "@/data/stories";
 import { formatYear } from "@/lib/history";
-import { type Era } from "@/data/eras";
+import { eraForYear, type Era } from "@/data/eras";
 
 const BASE = import.meta.env.BASE_URL;
 const src = (p?: string) => (p ? `${BASE}${p}` : undefined);
@@ -65,6 +65,7 @@ interface StoryTimelineProps {
  */
 export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTimelineProps) {
   const navigate = useNavigate();
+  const [hovered, setHovered] = useState<Story | null>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const [vw, setVw] = useState(0);
   const vwRef = useRef(0);
@@ -214,6 +215,7 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
 
   useEffect(() => {
     setActive(0);
+    setHovered(null);
     x.set(vwRef.current / 2);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stories]);
@@ -240,6 +242,7 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
     const onWheel = (e: WheelEvent) => {
       if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
       e.preventDefault();
+      setHovered(null);
       if (wheelLock.current) return;
       wheelLock.current = true;
       // Krok podle rychlosti scrollu: pomalu = po jedné, rychle = víc naráz.
@@ -296,11 +299,35 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
   }, [eras, items, renderCenters, isMobile]);
 
   const launch = (slug: string) => navigate(`/pribeh/${slug}`);
+
+  // Příběh do pozadí + info: hoverovaný, jinak vycentrovaný (vlajkový příběh epochy).
+  const activeItem = items[active];
+  const centeredStory =
+    activeItem?.stories.find((s) => s.slug === activeItem.slug) ?? activeItem?.stories[0];
+  const focusStory = hovered ?? centeredStory ?? null;
+  const focusEra = eras && focusStory ? eraForYear(repYear(focusStory), eras)?.name : undefined;
   const dragMin = vw / 2 - (layout.centers[items.length - 1] ?? 0);
   const dragMax = vw / 2;
 
   return (
-    <div className="relative flex h-full w-full flex-col bg-[#17140e] text-paper-light">
+    <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#17140e] text-paper-light">
+      {/* Pozadí — příběh (plynulý crossfade dle hoveru/středu osy) */}
+      <AnimatePresence>
+        {focusStory && (
+          <motion.div
+            key={focusStory.id}
+            initial={{ opacity: 0, scale: 1.06 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.7, ease: "easeOut" }}
+            className="absolute inset-0 z-0"
+          >
+            <Bg story={focusStory} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-t from-[#17140e] via-[#17140e]/55 to-[#17140e]/15" />
+
       {/* Štítek */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-end p-3 md:p-4">
         <span className="rounded-full bg-black/30 px-4 py-2 font-display text-sm font-bold text-paper-light/90 backdrop-blur-sm">
@@ -308,8 +335,38 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
         </span>
       </div>
 
-      {/* ---------- PÁS ---------- */}
-      <div ref={stripRef} className="relative h-full overflow-hidden">
+      {/* Info + Play (nad osou; mění se s pozadím) */}
+      {focusStory && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-[52%] z-20 px-6 md:px-10">
+          <motion.div
+            key={focusStory.id}
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: "easeOut" }}
+            className="pointer-events-auto max-w-2xl"
+          >
+            <div className="font-serif text-sm italic text-sun/85">
+              {formatYear(focusStory.yearFrom)} · {countryName}
+              {focusEra ? ` · ${focusEra}` : ""}
+            </div>
+            <h2 className="mt-1 font-display text-2xl font-extrabold leading-tight drop-shadow md:text-4xl">
+              {focusStory.title}
+            </h2>
+            <p className="mt-1 line-clamp-2 max-w-xl font-sans text-sm text-paper-light/85 drop-shadow">
+              {focusStory.excerpt}
+            </p>
+            <button
+              onClick={() => launch(focusStory.slug)}
+              className="mt-3 inline-flex items-center gap-2 rounded-full bg-sun px-5 py-2.5 font-display text-sm font-bold text-ink shadow-sticker transition-transform hover:-translate-y-0.5"
+            >
+              <Play className="h-5 w-5 fill-current" /> Spustit příběh
+            </button>
+          </motion.div>
+        </div>
+      )}
+
+      {/* ---------- OSA (spodní pruh) ---------- */}
+      <div ref={stripRef} className="relative z-10 mt-auto h-[50%] overflow-hidden">
         <div className="pointer-events-none absolute left-1/2 top-0 z-20 h-full w-px -translate-x-1/2 bg-sun/25" />
         <div className="pointer-events-none absolute left-1/2 top-2 z-20 -translate-x-1/2">
           <div className="h-0 w-0 border-x-[7px] border-t-[9px] border-x-transparent border-t-sun" />
@@ -323,7 +380,10 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
           dragElastic={0.06}
           dragTransition={{ power: 0.3, timeConstant: 340, modifyTarget: (t) => centerX(nearestTo(t)) }}
           onPointerDownCapture={() => (movedRef.current = false)}
-          onDragStart={() => (movedRef.current = true)}
+          onDragStart={() => {
+            movedRef.current = true;
+            setHovered(null);
+          }}
         >
           {/* linka osy */}
           <div className="absolute left-0 right-0 top-[55%] h-[2px] -translate-y-1/2 bg-paper-light/15" />
@@ -371,7 +431,13 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
           {/* kostky (epochy) — rozbalená epocha na desktopu = řada plných karet */}
           {items.map((it, i) =>
             i === expanded ? (
-              <EpochRow key={it.id} item={it} cx={renderCenters[i] ?? 0} onLaunch={launch} />
+              <EpochRow
+                key={it.id}
+                item={it}
+                cx={renderCenters[i] ?? 0}
+                onHover={setHovered}
+                onOpen={(s) => launch(s.slug)}
+              />
             ) : (
               <LensCard
                 key={it.id}
@@ -385,7 +451,8 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
                   if (movedRef.current) return;
                   goTo(i);
                 }}
-                onLaunch={launch}
+                onHover={setHovered}
+                onOpen={(s) => launch(s.slug)}
               />
             )
           )}
@@ -416,8 +483,28 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
   );
 }
 
+/** Pozadí osy — médium příběhu (video nebo obrázek), full-bleed. */
+function Bg({ story }: { story: Story }) {
+  const m = src(story.media);
+  if (m && story.mediaType === "video")
+    return <video className="h-full w-full object-cover" src={m} autoPlay muted loop playsInline />;
+  return (
+    <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url("${m ?? story.coverImage}")` }} />
+  );
+}
+
 /** Rozbalená epocha (desktop) — řada plných karet příběhů, vycentrovaná na `cx`. */
-function EpochRow({ item, cx, onLaunch }: { item: TItem; cx: number; onLaunch: (slug: string) => void }) {
+function EpochRow({
+  item,
+  cx,
+  onHover,
+  onOpen,
+}: {
+  item: TItem;
+  cx: number;
+  onHover: (s: Story | null) => void;
+  onOpen: (s: Story) => void;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.82 }}
@@ -430,9 +517,11 @@ function EpochRow({ item, cx, onLaunch }: { item: TItem; cx: number; onLaunch: (
         {item.stories.map((s) => (
           <button
             key={s.id}
+            onMouseEnter={() => onHover(s)}
+            onMouseLeave={() => onHover(null)}
             onClick={(e) => {
               e.stopPropagation();
-              onLaunch(s.slug);
+              onOpen(s);
             }}
             title={s.title}
             style={{ height: "clamp(96px,22vh,150px)" }}
@@ -444,11 +533,6 @@ function EpochRow({ item, cx, onLaunch }: { item: TItem; cx: number; onLaunch: (
             <div className="relative flex-1 bg-cover bg-center" style={{ backgroundImage: `url("${s.coverImage}")` }}>
               <span className="absolute left-1 top-1 rounded bg-black/50 px-1 py-0.5 text-[8px] font-bold text-paper-light/85 backdrop-blur-sm">
                 {formatYear(s.yearFrom)}
-              </span>
-              <span className="absolute inset-0 grid place-items-center opacity-0 transition-opacity group-hover:opacity-100">
-                <span className="grid h-8 w-8 place-items-center rounded-full bg-sun/95 text-ink shadow">
-                  <Play className="ml-0.5 h-4 w-4 fill-current" />
-                </span>
               </span>
             </div>
             <div className="shrink-0 p-1.5">
@@ -484,7 +568,8 @@ function LensCard({
   isMobile,
   isActive,
   onSelect,
-  onLaunch,
+  onHover,
+  onOpen,
 }: {
   item: TItem;
   cx: number;
@@ -493,7 +578,8 @@ function LensCard({
   isMobile: boolean;
   isActive: boolean;
   onSelect: () => void;
-  onLaunch: (slug: string) => void;
+  onHover: (s: Story | null) => void;
+  onOpen: (s: Story) => void;
 }) {
   const dim = isMobile ? "clamp(56px,16vw,88px)" : "clamp(72px,10.5vh,130px)";
   const maxScale = 1.3;
@@ -529,7 +615,9 @@ function LensCard({
 
   return (
     <motion.div
-      onClick={() => (isActive ? onLaunch(current.slug) : onSelect())}
+      onMouseEnter={() => onHover(current)}
+      onMouseLeave={() => onHover(null)}
+      onClick={() => (isActive ? onOpen(current) : onSelect())}
       className="absolute top-[55%] z-10 -translate-x-1/2 -translate-y-full cursor-pointer pb-3 transition-[transform,left] duration-300 hover:scale-[1.04]"
       style={{ left: cx, opacity }}
     >
@@ -560,30 +648,20 @@ function LensCard({
           <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url("${staticBg}")` }} />
         )}
 
-        {/* Overlay na vycentrované kostce: název (vlevo dole) + malý Play (vpravo dole) */}
+        {/* Overlay na vycentrované kostce: název (vlevo dole) */}
         {isActive && (
           <>
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-1.5 p-2">
+            <div className="absolute inset-x-0 bottom-0 p-2">
               <motion.span
                 key={current.id + "-t"}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.1 }}
-                className="min-w-0 flex-1 text-left font-display text-[11px] font-bold leading-tight text-paper-light drop-shadow line-clamp-2 group-hover:line-clamp-none md:text-sm"
+                className="block text-left font-display text-[11px] font-bold leading-tight text-paper-light drop-shadow line-clamp-2 group-hover:line-clamp-none md:text-sm"
               >
                 {current.title}
               </motion.span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onLaunch(current.slug);
-                }}
-                aria-label={`Spustit: ${current.title}`}
-                className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-sun/95 text-ink shadow-md transition-transform duration-200 hover:scale-[1.55]"
-              >
-                <Play className="ml-0.5 h-3 w-3 fill-current" />
-              </button>
             </div>
           </>
         )}

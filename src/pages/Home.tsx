@@ -193,7 +193,7 @@ export default function Home() {
         {timelineOpen && timelineStories.length > 0 && (
           <motion.div
             key="timeline"
-            className="absolute inset-x-0 bottom-0 z-40 h-[40vh]"
+            className="absolute inset-x-0 bottom-0 z-40 h-[68vh]"
             initial={{ y: "100%" }}
             animate={{ y: "0%" }}
             exit={{ y: "100%" }}
