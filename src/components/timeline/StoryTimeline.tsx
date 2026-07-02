@@ -9,71 +9,52 @@ import {
   useTransform,
   type MotionValue,
 } from "framer-motion";
-import { ChevronLeft, ChevronRight, Play } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Play } from "lucide-react";
 import type { Story } from "@/data/stories";
 import { formatYear } from "@/lib/history";
 import { eraForYear, type Era } from "@/data/eras";
 
 const BASE = import.meta.env.BASE_URL;
 const src = (p?: string) => (p ? `${BASE}${p}` : undefined);
-
-/** Reprezentativní rok (střed rozsahu). */
 const repYear = (s: Story) => (s.yearFrom + s.yearTo) / 2;
-
-/** „Nejlepší" příběh epochy — preferuj kinematický (beaty/hero/médium). */
-const score = (s: Story) => (s.beats ? 3 : 0) + (s.hero ? 2 : 0) + (s.media ? 1 : 0);
 
 // Měřítko osy (proporční podle roku, s omezením prázdných mezer).
 const PX_PER_YEAR = 0.5;
-const MIN_SEG = 210;
-const MAX_SEG = 420;
+const MIN_SEG = 190;
+const MAX_SEG = 380;
 
-/** Položka osy — v režimu epoch = epocha (s vlajkovým příběhem), jinak jeden příběh. */
-interface TItem {
-  id: string;
-  title: string;
-  slug: string;
-  media?: string;
-  mediaType?: "image" | "video";
-  cover: string;
-  /** Rok pro pozici na ose. */
-  year: number;
-  /** Popisek pod kostkou (rozsah epochy nebo rok). */
-  label: string;
-  /** Název epochy (jen v režimu epoch). */
-  epoch?: string;
-  epochRange?: string;
-  from?: number;
-  to?: number;
-  tint?: string;
-  /** Příběhy pod kostkou (epocha) nebo jeden příběh. */
-  stories: Story[];
+/** Médium karty (náhled) — jiné než pozadí u vlajkových příběhů. */
+function cardMedia(s: Story): { src?: string; video: boolean } {
+  const m = src(s.media);
+  return { src: m ?? s.coverImage, video: !!m && s.mediaType === "video" };
+}
+/** Médium pozadí — preferuje hero (jiné než karta), pak media, pak cover. */
+function bgMedia(s: Story): { src?: string; video: boolean } {
+  if (s.hero?.media) return { src: src(s.hero.media), video: s.hero.mediaType === "video" };
+  const m = src(s.media);
+  return { src: m ?? s.coverImage, video: !!m && s.mediaType === "video" };
 }
 
 interface StoryTimelineProps {
   countryName: string;
   stories: Story[];
   onClose: () => void;
-  /** Historická období — když jsou, osa běží v režimu epoch. */
   eras?: Era[];
 }
 
 /**
- * Kinematická HORIZONTÁLNÍ osa. S `eras` běží v REŽIMU EPOCH: kostka = epocha
- * (médium jejího vlajkového příběhu), vycentrovaná odhalí název + Play. Pod osou
- * grid příběhů dané epochy. Ovládání: swipe se setrvačností, kolečko/šipky/klik.
+ * Kinematická osa — FILMSTRIP jednotlivých příběhů. Vycentrovaný příběh = vybraný;
+ * plynule se přelíná do pozadí (Big Picture / TV feel). Pod osou pás epoch (grouping).
+ * Ovládání: swipe se setrvačností, kolečko/šipky (rychlost dle scrollu), hover, klik = spustit.
  */
 export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTimelineProps) {
   const navigate = useNavigate();
-  const [hovered, setHovered] = useState<Story | null>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const [vw, setVw] = useState(0);
   const vwRef = useRef(0);
   const [active, setActive] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
-  const [moving, setMoving] = useState(false); // true během pohybu osy (tažení/scroll/anim)
-  const movingRef = useRef(false);
-  const settleTimer = useRef(0);
+  const [hovered, setHovered] = useState<Story | null>(null);
   const wheelLock = useRef(false);
   const movedRef = useRef(false);
   const x = useMotionValue(0);
@@ -86,89 +67,26 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
     return () => mq.removeEventListener("change", on);
   }, []);
 
-  // Položky osy — epochy (když eras) nebo jednotlivé příběhy.
-  const items: TItem[] = useMemo(() => {
-    if (eras) {
-      const out: TItem[] = [];
-      for (const era of eras) {
-        const inEra = stories.filter((s) => {
-          const y = repYear(s);
-          return y >= era.from && y <= era.to;
-        });
-        if (!inEra.length) continue;
-        const flag = [...inEra].sort((a, b) => score(b) - score(a))[0];
-        const range = `${era.from}–${era.to === 2025 ? "dnes" : era.to}`;
-        out.push({
-          id: `epoch-${era.name}`,
-          title: flag.title,
-          slug: flag.slug,
-          media: flag.media,
-          mediaType: flag.mediaType,
-          cover: flag.coverImage,
-          year: (era.from + era.to) / 2,
-          label: "",
-          epoch: era.name,
-          epochRange: range,
-          from: era.from,
-          to: era.to,
-          tint: era.tint,
-          stories: inEra,
-        });
-      }
-      return out.sort((a, b) => a.year - b.year);
-    }
-    return stories.map((s) => ({
-      id: s.id,
-      title: s.title,
-      slug: s.slug,
-      media: s.media,
-      mediaType: s.mediaType,
-      cover: s.coverImage,
-      year: repYear(s),
-      label: formatYear(s.yearFrom),
-      stories: [s],
-    }));
-  }, [eras, stories]);
-
-  // Rozbalená epocha (jen desktop, po usazení) → její zóna se rozšíří na plné karty.
-  const CARD_STRIDE = 116;
-  const expanded = !moving && items[active]?.epoch ? active : -1;
-
-  // ZÁKLADNÍ rozložení (fyzika osy — scroll/snap/drag). Nezávisí na rozbalení!
+  // Rozložení: střed každého příběhu v px (proporčně dle roku, se zkrácením mezer).
   const layout = useMemo(() => {
-    const minSeg = isMobile ? 150 : MIN_SEG;
-    const maxSeg = isMobile ? 280 : MAX_SEG;
+    const minSeg = isMobile ? 130 : MIN_SEG;
+    const maxSeg = isMobile ? 240 : MAX_SEG;
     const centers: number[] = [];
     const gaps: { x: number; years: number }[] = [];
-    items.forEach((it, i) => {
+    stories.forEach((s, i) => {
       if (i === 0) {
         centers.push(0);
         return;
       }
-      const years = it.year - items[i - 1].year;
+      const years = repYear(s) - repYear(stories[i - 1]);
       const raw = years * PX_PER_YEAR;
       const seg = Math.max(minSeg, Math.min(maxSeg, raw));
       const cx = centers[i - 1] + seg;
       centers.push(cx);
       if (raw > maxSeg) gaps.push({ x: (centers[i - 1] + cx) / 2, years: Math.round(years) });
     });
-    return { centers, gaps, width: centers[centers.length - 1] ?? 0 };
-  }, [items, isMobile]);
-
-  // VYKRESLOVACÍ centers — základní + vizuální rozšíření rozbalené epochy (nemá vliv na fyziku).
-  const renderCenters = useMemo(() => {
-    const cs = layout.centers.slice();
-    if (expanded >= 0 && items[expanded]?.epoch) {
-      const rowW = Math.max(CARD_STRIDE, items[expanded].stories.length * CARD_STRIDE);
-      const half = rowW / 2;
-      for (let j = 0; j < cs.length; j++) {
-        if (j < expanded) cs[j] -= half;
-        else if (j > expanded) cs[j] += half;
-      }
-    }
-    return cs;
-  }, [layout, expanded, items]);
-  const renderWidth = (renderCenters[renderCenters.length - 1] ?? 0) + 500;
+    return { centers, gaps, width: (centers[centers.length - 1] ?? 0) + 400 };
+  }, [stories, isMobile]);
 
   const centerX = useCallback((i: number) => vwRef.current / 2 - (layout.centers[i] ?? 0), [layout]);
 
@@ -191,10 +109,10 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
 
   const goTo = useCallback(
     (i: number) => {
-      const idx = Math.max(0, Math.min(items.length - 1, i));
+      const idx = Math.max(0, Math.min(stories.length - 1, i));
       animate(x, centerX(idx), { type: "spring", stiffness: 260, damping: 32 });
     },
-    [x, centerX, items.length]
+    [x, centerX, stories.length]
   );
 
   useLayoutEffect(() => {
@@ -224,16 +142,6 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
     if (!vwRef.current) return;
     const n = nearestTo(v);
     setActive((prev) => (prev === n ? prev : n));
-    // Pohyb → sbalit; po ~170 ms klidu → usazeno (rozevře se).
-    if (!movingRef.current) {
-      movingRef.current = true;
-      setMoving(true);
-    }
-    window.clearTimeout(settleTimer.current);
-    settleTimer.current = window.setTimeout(() => {
-      movingRef.current = false;
-      setMoving(false);
-    }, 170);
   });
 
   useEffect(() => {
@@ -245,7 +153,6 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
       setHovered(null);
       if (wheelLock.current) return;
       wheelLock.current = true;
-      // Krok podle rychlosti scrollu: pomalu = po jedné, rychle = víc naráz.
       const dir = e.deltaY > 0 ? 1 : -1;
       const step = Math.min(4, Math.max(1, Math.round(Math.abs(e.deltaY) / 80)));
       goTo(nearestTo(x.get()) + dir * step);
@@ -265,53 +172,41 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
     return () => window.removeEventListener("keydown", onKey);
   }, [goTo, nearestTo, x, onClose]);
 
-  // Pás epoch (jen v režimu epoch) — segment pod každou kostkou, aktivní zvýrazněn.
-  const bandSegs = useMemo(() => {
-    if (!eras || !items.length || !items[0].epoch)
-      return [] as {
-        i: number;
-        left: number;
-        width: number;
-        name: string;
-        from: number;
-        to: number;
-        tint: string;
-        stories: Story[];
-      }[];
-    const seg = isMobile ? 150 : MIN_SEG;
-    return items.map((it, i) => {
-      const c = renderCenters[i] ?? 0;
-      const prev = i > 0 ? renderCenters[i - 1] : c - seg;
-      const next = i < items.length - 1 ? renderCenters[i + 1] : c + seg;
-      const left = (prev + c) / 2;
-      const right = (c + next) / 2;
-      return {
-        i,
-        left,
-        width: Math.max(0, right - left),
-        name: it.epoch!,
-        from: it.from!,
-        to: it.to!,
-        tint: it.tint!,
-        stories: it.stories,
-      };
-    });
-  }, [eras, items, renderCenters, isMobile]);
+  // Pás epoch (grouping pod osou) — segment přes příběhy dané epochy.
+  const eraSegs = useMemo(() => {
+    if (!eras || stories.length === 0) return [];
+    const half = (isMobile ? 130 : MIN_SEG) / 2;
+    const out: { name: string; from: number; to: number; tint: string; left: number; width: number }[] = [];
+    for (const era of eras) {
+      const idxs = stories
+        .map((s, i) => ({ s, i }))
+        .filter(({ s }) => {
+          const y = repYear(s);
+          return y >= era.from && y <= era.to;
+        })
+        .map(({ i }) => i);
+      if (!idxs.length) continue;
+      const left = (layout.centers[idxs[0]] ?? 0) - half;
+      const right = (layout.centers[idxs[idxs.length - 1]] ?? 0) + half;
+      out.push({ name: era.name, from: era.from, to: era.to, tint: era.tint, left, width: Math.max(0, right - left) });
+    }
+    return out;
+  }, [eras, stories, layout, isMobile]);
 
   const launch = (slug: string) => navigate(`/pribeh/${slug}`);
 
-  // Příběh do pozadí + info: hoverovaný, jinak vycentrovaný (vlajkový příběh epochy).
-  const activeItem = items[active];
-  const centeredStory =
-    activeItem?.stories.find((s) => s.slug === activeItem.slug) ?? activeItem?.stories[0];
-  const focusStory = hovered ?? centeredStory ?? null;
+  const centeredStory = stories[active] ?? null;
+  const focusStory = hovered ?? centeredStory;
   const focusEra = eras && focusStory ? eraForYear(repYear(focusStory), eras)?.name : undefined;
-  const dragMin = vw / 2 - (layout.centers[items.length - 1] ?? 0);
+  const activeEra = eras && centeredStory ? eraForYear(repYear(centeredStory), eras)?.name : undefined;
+
+  const dragMin = vw / 2 - (layout.centers[stories.length - 1] ?? 0);
   const dragMax = vw / 2;
+  const bg = focusStory ? bgMedia(focusStory) : null;
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#17140e] text-paper-light">
-      {/* Pozadí — příběh (plynulý crossfade dle hoveru/středu osy) */}
+      {/* Pozadí — příběh (plynulý crossfade dle hoveru/středu) */}
       <AnimatePresence>
         {focusStory && (
           <motion.div
@@ -322,7 +217,11 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
             transition={{ duration: 0.7, ease: "easeOut" }}
             className="absolute inset-0 z-0"
           >
-            <Bg story={focusStory} />
+            {bg?.video ? (
+              <video className="h-full w-full object-cover" src={bg.src} autoPlay muted loop playsInline />
+            ) : (
+              <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url("${bg?.src}")` }} />
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -337,7 +236,7 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
 
       {/* Info + Play (nad osou; mění se s pozadím) */}
       {focusStory && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[52%] z-20 px-6 md:px-10">
+        <div className="pointer-events-none absolute inset-x-0 bottom-[50%] z-20 px-6 md:px-10">
           <motion.div
             key={focusStory.id}
             initial={{ opacity: 0, y: 14 }}
@@ -348,6 +247,7 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
             <div className="font-serif text-sm italic text-sun/85">
               {formatYear(focusStory.yearFrom)} · {countryName}
               {focusEra ? ` · ${focusEra}` : ""}
+              {!focusStory.beats && <span className="text-paper-light/50"> · článek</span>}
             </div>
             <h2 className="mt-1 font-display text-2xl font-extrabold leading-tight drop-shadow md:text-4xl">
               {focusStory.title}
@@ -355,26 +255,41 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
             <p className="mt-1 line-clamp-2 max-w-xl font-sans text-sm text-paper-light/85 drop-shadow">
               {focusStory.excerpt}
             </p>
-            <button
-              onClick={() => launch(focusStory.slug)}
-              className="mt-3 inline-flex items-center gap-2 rounded-full bg-sun px-5 py-2.5 font-display text-sm font-bold text-ink shadow-sticker transition-transform hover:-translate-y-0.5"
-            >
-              <Play className="h-5 w-5 fill-current" /> Spustit příběh
-            </button>
+            {focusStory.beats ? (
+              <button
+                onClick={() => launch(focusStory.slug)}
+                className="mt-3 inline-flex items-center gap-2 rounded-full bg-sun px-5 py-2.5 font-display text-sm font-bold text-ink shadow-sticker transition-transform hover:-translate-y-0.5"
+              >
+                <Play className="h-5 w-5 fill-current" /> Spustit příběh
+              </button>
+            ) : (
+              <div className="mt-3">
+                <div className="mb-2 font-serif text-xs italic text-paper-light/55">
+                  Pro tuto událost zatím neexistují žádné příběhy.
+                </div>
+                <button
+                  onClick={() => launch(focusStory.slug)}
+                  className="inline-flex items-center gap-2 rounded-full border-2 border-paper-light/25 bg-black/20 px-5 py-2.5 font-display text-sm font-bold text-paper-light backdrop-blur-sm transition-transform hover:-translate-y-0.5"
+                >
+                  <BookOpen className="h-5 w-5" /> Přečíst článek
+                </button>
+              </div>
+            )}
           </motion.div>
         </div>
       )}
 
       {/* ---------- OSA (spodní pruh) ---------- */}
-      <div ref={stripRef} className="relative z-10 mt-auto h-[50%] overflow-hidden">
+      <div ref={stripRef} className="relative z-10 mt-auto h-[46%] overflow-hidden">
+        {/* playhead */}
         <div className="pointer-events-none absolute left-1/2 top-0 z-20 h-full w-px -translate-x-1/2 bg-sun/25" />
-        <div className="pointer-events-none absolute left-1/2 top-2 z-20 -translate-x-1/2">
+        <div className="pointer-events-none absolute left-1/2 top-1 z-20 -translate-x-1/2">
           <div className="h-0 w-0 border-x-[7px] border-t-[9px] border-x-transparent border-t-sun" />
         </div>
 
         <motion.div
           className="absolute top-0 h-full cursor-grab active:cursor-grabbing"
-          style={{ width: renderWidth || "100%", x }}
+          style={{ width: layout.width || "100%", x }}
           drag="x"
           dragConstraints={{ left: dragMin, right: dragMax }}
           dragElastic={0.06}
@@ -385,33 +300,33 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
             setHovered(null);
           }}
         >
-          {/* linka osy */}
-          <div className="absolute left-0 right-0 top-[55%] h-[2px] -translate-y-1/2 bg-paper-light/15" />
+          {/* osa linka */}
+          <div className="absolute left-0 right-0 top-[62%] h-[2px] -translate-y-1/2 bg-paper-light/15" />
 
-          {/* pás epoch — mobil-aktivní = malé kartičky; jinak název/roky (aktivní zvýrazněn) */}
-          {bandSegs.map((b) => {
-            const on = b.i === active;
+          {/* pás epoch (grouping) */}
+          {eraSegs.map((e, i) => {
+            const on = e.name === activeEra;
             return (
               <div
-                key={`band-${b.i}`}
+                key={`era-${i}`}
                 className={
-                  "absolute top-[60%] flex h-[14%] items-center justify-between gap-1 overflow-hidden rounded-md border px-1.5 transition-all duration-300 " +
-                  (on ? "border-sun/70 opacity-100 shadow-[0_0_14px_rgba(244,196,48,.35)]" : "border-white/5 opacity-55")
+                  "absolute top-[68%] flex h-[16%] items-center justify-between gap-1 overflow-hidden rounded-md border px-1.5 transition-all duration-300 " +
+                  (on ? "border-sun/70 opacity-100 shadow-[0_0_14px_rgba(244,196,48,.3)]" : "border-white/5 opacity-55")
                 }
-                style={{ left: b.left, width: b.width, background: b.tint }}
-                title={`${b.name} (${b.from}–${b.to === 2025 ? "dnes" : b.to})`}
+                style={{ left: e.left, width: e.width, background: e.tint }}
+                title={`${e.name} (${e.from}–${e.to === 2025 ? "dnes" : e.to})`}
               >
-                <span className="shrink-0 font-sans text-[9px] tabular-nums text-paper-light/55">{b.from}</span>
+                <span className="shrink-0 font-sans text-[9px] tabular-nums text-paper-light/55">{e.from}</span>
                 <span
                   className={
                     "truncate text-center font-display text-[10px] font-bold uppercase tracking-wide md:text-xs " +
                     (on ? "text-sun" : "text-paper-light/70")
                   }
                 >
-                  {b.name}
+                  {e.name}
                 </span>
                 <span className="shrink-0 font-sans text-[9px] tabular-nums text-paper-light/55">
-                  {b.to === 2025 ? "dnes" : b.to}
+                  {e.to === 2025 ? "dnes" : e.to}
                 </span>
               </div>
             );
@@ -421,41 +336,30 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
           {layout.gaps.map((g, i) => (
             <div
               key={`gap-${i}`}
-              className="absolute top-[55%] -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-black/30 px-2 py-0.5 font-sans text-[10px] text-paper-light/40"
+              className="absolute top-[62%] -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-black/30 px-2 py-0.5 font-sans text-[10px] text-paper-light/40"
               style={{ left: g.x }}
             >
               … {g.years} let
             </div>
           ))}
 
-          {/* kostky (epochy) — rozbalená epocha na desktopu = řada plných karet */}
-          {items.map((it, i) =>
-            i === expanded ? (
-              <EpochRow
-                key={it.id}
-                item={it}
-                cx={renderCenters[i] ?? 0}
-                onHover={setHovered}
-                onOpen={(s) => launch(s.slug)}
-              />
-            ) : (
-              <LensCard
-                key={it.id}
-                item={it}
-                cx={renderCenters[i] ?? 0}
-                x={x}
-                vw={vw}
-                isMobile={isMobile}
-                isActive={i === active}
-                onSelect={() => {
-                  if (movedRef.current) return;
-                  goTo(i);
-                }}
-                onHover={setHovered}
-                onOpen={(s) => launch(s.slug)}
-              />
-            )
-          )}
+          {/* karty příběhů */}
+          {stories.map((s, i) => (
+            <StoryCard
+              key={s.id}
+              story={s}
+              cx={layout.centers[i] ?? 0}
+              x={x}
+              vw={vw}
+              isMobile={isMobile}
+              isActive={i === active}
+              onHover={setHovered}
+              onCenter={() => {
+                if (movedRef.current) return;
+                goTo(i);
+              }}
+            />
+          ))}
         </motion.div>
 
         {/* šipky (desktop) */}
@@ -468,7 +372,7 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
             <ChevronLeft className="h-5 w-5" />
           </button>
         )}
-        {active < items.length - 1 && (
+        {active < stories.length - 1 && (
           <button
             onClick={() => goTo(active + 1)}
             aria-label="Další"
@@ -478,112 +382,33 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
           </button>
         )}
       </div>
-
     </div>
   );
 }
 
-/** Pozadí osy — médium příběhu (video nebo obrázek), full-bleed. */
-function Bg({ story }: { story: Story }) {
-  const m = src(story.media);
-  if (m && story.mediaType === "video")
-    return <video className="h-full w-full object-cover" src={m} autoPlay muted loop playsInline />;
-  return (
-    <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url("${m ?? story.coverImage}")` }} />
-  );
-}
-
-/** Rozbalená epocha (desktop) — řada plných karet příběhů, vycentrovaná na `cx`. */
-function EpochRow({
-  item,
-  cx,
-  onHover,
-  onOpen,
-}: {
-  item: TItem;
-  cx: number;
-  onHover: (s: Story | null) => void;
-  onOpen: (s: Story) => void;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.82 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-      className="absolute z-20 transition-[left] duration-300"
-      style={{ left: cx, bottom: "45%", transformOrigin: "center bottom" }}
-    >
-      <div className="flex -translate-x-1/2 items-end gap-2">
-        {item.stories.map((s) => (
-          <button
-            key={s.id}
-            onMouseEnter={() => onHover(s)}
-            onMouseLeave={() => onHover(null)}
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpen(s);
-            }}
-            title={s.title}
-            style={{ height: "clamp(96px,22vh,150px)" }}
-            className={
-              "group relative flex w-[100px] shrink-0 flex-col overflow-hidden rounded-xl border-2 bg-paper-light/5 shadow-parchment-lg transition-transform hover:-translate-y-1 " +
-              (s.slug === item.slug ? "border-sun" : "border-paper-light/20")
-            }
-          >
-            <div className="relative flex-1 bg-cover bg-center" style={{ backgroundImage: `url("${s.coverImage}")` }}>
-              <span className="absolute left-1 top-1 rounded bg-black/50 px-1 py-0.5 text-[8px] font-bold text-paper-light/85 backdrop-blur-sm">
-                {formatYear(s.yearFrom)}
-              </span>
-            </div>
-            <div className="shrink-0 p-1.5">
-              <div className="line-clamp-2 text-left font-display text-[10px] font-bold leading-tight text-paper-light group-hover:text-sun">
-                {s.title}
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
-    </motion.div>
-  );
-}
-
-/** Náhled jednoho příběhu (video nebo obrázek) — do rotace v kostce. */
-function Preview({ story }: { story: Story }) {
-  const m = src(story.media);
-  if (m && story.mediaType === "video") return <SlowVideo src={m} active />;
-  return (
-    <div
-      className="absolute inset-0 bg-cover bg-center kenburns"
-      style={{ backgroundImage: `url("${m ?? story.coverImage}")` }}
-    />
-  );
-}
-
-/** Kostka epochy — lupa dle vzdálenosti od středu; aktivní rotuje náhledy + Play. */
-function LensCard({
-  item,
+/** Karta příběhu — lupa dle vzdálenosti od středu; náhled z média (jiné než pozadí). */
+function StoryCard({
+  story,
   cx,
   x,
   vw,
   isMobile,
   isActive,
-  onSelect,
   onHover,
-  onOpen,
+  onCenter,
 }: {
-  item: TItem;
+  story: Story;
   cx: number;
   x: MotionValue<number>;
   vw: number;
   isMobile: boolean;
   isActive: boolean;
-  onSelect: () => void;
   onHover: (s: Story | null) => void;
-  onOpen: (s: Story) => void;
+  onCenter: () => void;
 }) {
-  const dim = isMobile ? "clamp(56px,16vw,88px)" : "clamp(72px,10.5vh,130px)";
-  const maxScale = 1.3;
-  const thresh = (isMobile ? 150 : 210) * 1.35;
+  const dim = isMobile ? "clamp(58px,17vw,92px)" : "clamp(78px,12vh,132px)";
+  const maxScale = isMobile ? 1.35 : 1.4;
+  const thresh = (isMobile ? 150 : 210) * 1.3;
 
   const scale = useTransform(x, (xv) => {
     if (!vw) return isActive ? maxScale : 1;
@@ -596,33 +421,21 @@ function LensCard({
     if (!vw) return isActive ? 1 : 0.55;
     const dist = Math.abs(xv + cx - vw / 2);
     const t = Math.max(0, 1 - dist / (thresh * 1.7));
-    return 0.4 + 0.6 * t;
+    return 0.42 + 0.58 * t;
   });
 
-  // Rotace náhledů příběhů epochy na aktivní kostce.
-  const [pIdx, setPIdx] = useState(0);
-  useEffect(() => {
-    if (!isActive || item.stories.length <= 1) {
-      setPIdx(0);
-      return;
-    }
-    const id = window.setInterval(() => setPIdx((i) => (i + 1) % item.stories.length), 2600);
-    return () => window.clearInterval(id);
-  }, [isActive, item.stories.length]);
-
-  const current = (isActive ? item.stories[pIdx] : undefined) ?? item.stories[0];
-  const staticBg = item.media && item.mediaType !== "video" ? src(item.media) : item.cover;
+  const media = cardMedia(story);
 
   return (
     <motion.div
-      onMouseEnter={() => onHover(current)}
+      onMouseEnter={() => onHover(story)}
       onMouseLeave={() => onHover(null)}
-      onClick={() => (isActive ? onOpen(current) : onSelect())}
-      className="absolute top-[55%] z-10 -translate-x-1/2 -translate-y-full cursor-pointer pb-3 transition-[transform,left] duration-300 hover:scale-[1.04]"
+      onClick={onCenter}
+      className="group absolute top-[62%] z-10 -translate-x-1/2 -translate-y-full cursor-pointer pb-3 transition-transform duration-200 hover:scale-[1.04]"
       style={{ left: cx, opacity }}
     >
       <motion.div
-        className="group relative overflow-hidden rounded-2xl border-2 shadow-parchment-lg transition-colors duration-300"
+        className="relative overflow-hidden rounded-2xl border-2 shadow-parchment-lg transition-colors duration-300"
         style={{
           width: dim,
           height: dim,
@@ -631,52 +444,42 @@ function LensCard({
           transformOrigin: "bottom center",
         }}
       >
-        {isActive ? (
-          <AnimatePresence>
-            <motion.div
-              key={current.id}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.8 }}
-              className="absolute inset-0"
-            >
-              <Preview story={current} />
-            </motion.div>
-          </AnimatePresence>
+        {media.video ? (
+          <SlowVideo src={media.src!} active={isActive} />
         ) : (
-          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url("${staticBg}")` }} />
+          <div
+            className={`absolute inset-0 bg-cover bg-center ${isActive ? "kenburns" : ""}`}
+            style={{ backgroundImage: `url("${media.src}")` }}
+          />
         )}
-
-        {/* Overlay na vycentrované kostce: název (vlevo dole) */}
+        {!story.beats && (
+          <span className="absolute left-1 top-1 rounded bg-black/45 px-1 py-0.5 text-[7px] font-bold uppercase text-paper-light/80 backdrop-blur-sm">
+            článek
+          </span>
+        )}
+        <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/20" />
         {isActive && (
           <>
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 p-2">
-              <motion.span
-                key={current.id + "-t"}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.1 }}
-                className="block text-left font-display text-[11px] font-bold leading-tight text-paper-light drop-shadow line-clamp-2 group-hover:line-clamp-none md:text-sm"
-              >
-                {current.title}
-              </motion.span>
-            </div>
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+            <motion.span
+              key={story.id}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+              className="absolute inset-x-0 bottom-0 block p-1.5 text-left font-display text-[10px] font-bold leading-tight text-paper-light drop-shadow line-clamp-2 group-hover:line-clamp-none"
+            >
+              {story.title}
+            </motion.span>
           </>
         )}
-
-        <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/20" />
       </motion.div>
-      {item.label && (
-        <div
-          className={`mt-2 text-center font-display text-[11px] font-bold transition-colors ${
-            isActive ? "text-sun" : "text-paper-light/50"
-          }`}
-        >
-          {item.label}
-        </div>
-      )}
+      <div
+        className={`mt-2 text-center font-display text-[11px] font-bold transition-colors ${
+          isActive ? "text-sun" : "text-paper-light/50"
+        }`}
+      >
+        {formatYear(story.yearFrom)}
+      </div>
     </motion.div>
   );
 }
