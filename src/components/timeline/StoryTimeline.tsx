@@ -82,7 +82,8 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
 
   // Pás období: rok → x podle stejného (nelineárního) rozložení jako kostky.
   const eraSegs = useMemo(() => {
-    if (!eras || stories.length === 0) return [] as { name: string; tint: string; left: number; width: number }[];
+    if (!eras || stories.length === 0)
+      return [] as { name: string; tint: string; left: number; width: number; from: number; to: number }[];
     const ys = stories.map(repYear);
     const xs = layout.centers;
     const last = xs.length - 1;
@@ -107,7 +108,7 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
       .map((e) => {
         const l = clamp(yearToX(e.from));
         const r = clamp(yearToX(e.to));
-        return { name: e.name, tint: e.tint, left: l, width: Math.max(0, r - l) };
+        return { name: e.name, tint: e.tint, left: l, width: Math.max(0, r - l), from: e.from, to: e.to };
       })
       .filter((s) => s.width > 2);
   }, [eras, stories, layout, isMobile]);
@@ -244,12 +245,16 @@ export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTime
           {eraSegs.map((e, i) => (
             <div
               key={`era-${i}`}
-              className="absolute top-[80%] flex h-[15%] items-center justify-center overflow-hidden rounded-md border border-white/5 px-2"
+              className="absolute top-[80%] flex h-[15%] items-center justify-between gap-1 overflow-hidden rounded-md border border-white/5 px-1.5"
               style={{ left: e.left, width: e.width, background: e.tint }}
-              title={e.name}
+              title={`${e.name} (${e.from}–${e.to === 2025 ? "dnes" : e.to})`}
             >
+              <span className="shrink-0 font-sans text-[9px] tabular-nums text-paper-light/55">{e.from}</span>
               <span className="truncate text-center font-display text-[10px] font-bold uppercase tracking-wide text-paper-light/75 md:text-xs">
                 {e.name}
+              </span>
+              <span className="shrink-0 font-sans text-[9px] tabular-nums text-paper-light/55">
+                {e.to === 2025 ? "dnes" : e.to}
               </span>
             </div>
           ))}
