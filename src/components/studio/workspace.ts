@@ -7,26 +7,21 @@
 import { storiesByAuthor } from "@/lib/history";
 import { storyStat, type StoryStat } from "@/lib/mockStats";
 import type { Story } from "@/data/stories";
+import { PHASES, type PhaseId } from "./phases";
 
-/** Produkční fáze položky (0 = jen článek … done = publikovatelný příběh). */
-export type Stage = "article" | "characters" | "beats" | "texts" | "media" | "audio" | "done";
+/**
+ * Produkční fáze položky = `PhaseId` z jedné tabulky (phases.ts).
+ * Poslední fáze `publish` znamená v dashboardu „hotovo / publikováno".
+ */
+export type Stage = PhaseId;
 
-export const STAGES: Stage[] = ["article", "characters", "beats", "texts", "media", "audio", "done"];
-export const STAGE_LABEL: Record<Stage, string> = {
-  article: "Článek",
-  characters: "Postavy",
-  beats: "Beaty",
-  texts: "Texty",
-  media: "Média",
-  audio: "Zvuk",
-  done: "Hotovo",
-};
-/** Kroky produkce po článku (co ukazuje progres bar). */
-export const PROD_STEPS: Stage[] = ["characters", "beats", "texts", "media", "audio", "done"];
-
-export function stageIndex(s: Stage): number {
-  return STAGES.indexOf(s);
-}
+/**
+ * Popisky fází pro dashboard = tabulka PHASES; jen `publish` se v progresu
+ * kreslí jako stav „Hotovo" (na rozdíl od editorské akce „Publikace").
+ */
+export const STAGE_LABEL: Record<PhaseId, string> = Object.fromEntries(
+  PHASES.map((p) => [p.id, p.id === "publish" ? "Hotovo" : p.label]),
+) as Record<PhaseId, string>;
 
 function hash(str: string): number {
   let h = 2166136261;
@@ -39,8 +34,8 @@ function hash(str: string): number {
 
 /** Deterministická fáze — příběhy s beaty jsou hotové, zbytek rozprostřen. */
 function stageOf(s: Story): Stage {
-  if (s.beats?.length) return "done";
-  const pool: Stage[] = ["article", "article", "article", "characters", "beats", "texts", "media", "audio", "done", "done"];
+  if (s.beats?.length) return "publish";
+  const pool: Stage[] = ["article", "article", "article", "characters", "beats", "texts", "media", "audio", "publish", "publish"];
   return pool[hash(s.slug) % pool.length];
 }
 
@@ -61,7 +56,7 @@ export function myWorkspace(name: string): WorkItem[] {
       story,
       stage,
       isArticle: stage === "article",
-      isPublished: stage === "done",
+      isPublished: stage === "publish",
       stat: storyStat(story),
     };
   });

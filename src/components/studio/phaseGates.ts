@@ -1,20 +1,14 @@
 /**
  * phaseGates.ts — čistý (React-free) gating creatoru „článek → příběh".
- * Jedno místo, kde žije pravda o fázích: pro každou fázi `done` (splněná?),
+ * Jedno místo, kde žije pravda o gate: pro každou fázi `done` (splněná?),
  * `unlocked` (odemčená?) a `hint` (co chybí). `unlocked` se NEODVOZUJE ručně —
- * počítá se z pořadí fází (PHASE_ORDER) a `done` předchozí fáze.
+ * počítá se z pořadí fází (PHASE_IDS z phases.ts) a `done` předchozí fáze.
  *
- * Interface = test surface: přidání/změna fáze se dotkne jen tohoto modulu.
- * StudioEditor pak jen zavolá phaseGates(draft) a konzumuje výsledek.
+ * Seznam a pořadí fází vlastní `phases.ts` (jedna tabulka). Tenhle modul jen
+ * navěsí gate na každé id. StudioEditor pak zavolá phaseGates(draft) a konzumuje.
  */
 import type { DraftChar, DraftBeat, AudioState } from "./creator";
-
-export type PhaseId = "article" | "characters" | "beats" | "texts" | "media" | "audio" | "publish";
-
-/** Pořadí fází — zdroj pravdy pro řetězení odemykání (každá se odemkne po `done` předchozí). */
-export const PHASE_ORDER: PhaseId[] = [
-  "article", "characters", "beats", "texts", "media", "audio", "publish",
-];
+import { PHASE_IDS, type PhaseId } from "./phases";
 
 /** Prostý snapshot stavu, který predikáty potřebují — bez Reactu, bez derivací navíc. */
 export interface GateDraft {
@@ -68,8 +62,8 @@ export function phaseGates(draft: GateDraft): Record<PhaseId, PhaseGate> {
   };
 
   const gates = {} as Record<PhaseId, PhaseGate>;
-  PHASE_ORDER.forEach((id, i) => {
-    const unlocked = i === 0 ? true : done[PHASE_ORDER[i - 1]];
+  PHASE_IDS.forEach((id, i) => {
+    const unlocked = i === 0 ? true : done[PHASE_IDS[i - 1]];
     gates[id] = { done: done[id], unlocked, hint: hint[id] };
   });
   return gates;

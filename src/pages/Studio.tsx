@@ -15,9 +15,10 @@ import { formatYear } from "@/lib/history";
 import { LineChart } from "@/components/ui/charts";
 import { series } from "@/lib/mockStats";
 import {
-  myWorkspace, matchesFilter, workSummary, stageIndex, PROD_STEPS, STAGE_LABEL,
+  myWorkspace, matchesFilter, workSummary, STAGE_LABEL,
   type WorkFilter, type WorkItem,
 } from "@/components/studio/workspace";
+import { PHASES, phaseIndex } from "@/components/studio/phases";
 import type { Story } from "@/data/stories";
 
 const MONTHS = ["led", "úno", "bře", "dub", "kvě", "čvn", "čvc", "srp", "zář", "říj", "lis", "pro"];
@@ -48,24 +49,25 @@ function Kpi({ icon, label, value, sub, accent }: { icon: React.ReactNode; label
 
 /** Produkční progres: článek → postavy → beaty → média → zvuk → hotovo. */
 function StageBar({ stage }: { stage: WorkItem["stage"] }) {
-  const idx = stageIndex(stage); // 0..5
+  const idx = phaseIndex(stage);
+  // Kroky = fáze po článku; „reached" se odvodí z `order` v tabulce (žádný ruční +1).
+  const steps = PHASES.filter((p) => p.id !== "article");
   return (
     <div className="flex items-center gap-2">
       <div className="flex items-center gap-1">
-        {PROD_STEPS.map((st, i) => {
-          const stepIdx = i + 1; // 1..5
-          const reached = idx >= stepIdx;
+        {steps.map((p) => {
+          const reached = idx >= p.order;
           return (
             <span
-              key={st}
-              title={STAGE_LABEL[st]}
+              key={p.id}
+              title={STAGE_LABEL[p.id]}
               className={"h-1.5 w-6 rounded-full transition-colors " + (reached ? "bg-green-500" : "bg-zinc-200")}
             />
           );
         })}
       </div>
       <span className="text-xs text-zinc-500">
-        {stage === "done" ? "hotovo" : `fáze: ${STAGE_LABEL[stage]}`}
+        {stage === "publish" ? "hotovo" : `fáze: ${STAGE_LABEL[stage]}`}
       </span>
     </div>
   );

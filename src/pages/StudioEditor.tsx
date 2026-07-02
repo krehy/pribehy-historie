@@ -19,18 +19,12 @@ import {
   type CharKind, type AudioState,
 } from "@/components/studio/creator";
 import { RichTextEditor } from "@/components/studio/RichTextEditor";
-import { phaseGates, type PhaseId } from "@/components/studio/phaseGates";
+import { phaseGates } from "@/components/studio/phaseGates";
+import { PHASES, type PhaseId, type Phase } from "@/components/studio/phases";
 import { assetUrl } from "@/lib/assetUrl";
 
-const PHASES: { id: PhaseId; n: string; label: string; icon: typeof FileText; star?: boolean }[] = [
-  { id: "article", n: "0", label: "Článek", icon: FileText },
-  { id: "characters", n: "1", label: "Postavy", icon: Users },
-  { id: "beats", n: "2", label: "Beaty", icon: Film },
-  { id: "texts", n: "3", label: "Texty", icon: PenLine },
-  { id: "media", n: "4", label: "Média", icon: ImageIcon },
-  { id: "audio", n: "5", label: "Zvuk", icon: Music },
-  { id: "publish", n: "★", label: "Publikace", icon: Rocket, star: true },
-];
+/** Číselný odznak fáze v liště — odvozený z tabulky (poslední = ★). */
+const phaseBadge = (p: Phase) => (p.id === "publish" ? "★" : String(p.order));
 
 const MOODS: Mood[] = ["dawn", "day", "mystic", "night"];
 const BEAT_KINDS: BeatKind[] = ["scene", "flip", "quiz", "scrub"];
@@ -174,7 +168,7 @@ export default function StudioEditor() {
                       (done ? "bg-green-500 text-white" : active ? "bg-amber-400 text-zinc-900"
                         : unlocked ? "bg-zinc-200 text-zinc-600" : "bg-zinc-200 text-zinc-400")
                     }>
-                      {done ? <Check className="h-3.5 w-3.5" /> : !unlocked ? <Lock className="h-3 w-3" /> : p.n}
+                      {done ? <Check className="h-3.5 w-3.5" /> : !unlocked ? <Lock className="h-3 w-3" /> : phaseBadge(p)}
                     </span>
                     <Icon className="h-4 w-4 flex-none opacity-70" />
                     <span className="truncate font-medium">{p.label}</span>
