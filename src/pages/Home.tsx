@@ -9,6 +9,7 @@ import { storiesForCountry, storiesForRegion } from "@/lib/history";
 import { countryName } from "@/data/countries";
 import { continentName, continentOfA3, type ContinentId } from "@/data/continents";
 import { hasRegions, regionName } from "@/data/regions";
+import { erasForCountry } from "@/data/eras";
 import type { Story } from "@/data/stories";
 
 type Phase = "loading" | "hero" | "map";
@@ -211,6 +212,7 @@ export default function Home() {
                 countryName={timelineLabel}
                 stories={timelineStories}
                 onClose={closeTimeline}
+                eras={erasForCountry(country)}
               />
             </motion.div>
           </motion.div>

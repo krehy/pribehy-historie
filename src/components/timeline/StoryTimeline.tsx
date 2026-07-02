@@ -12,6 +12,7 @@ import {
 import { BookOpen, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Story } from "@/data/stories";
 import { formatRange, formatYear } from "@/lib/history";
+import { eraNameForYear, type Era } from "@/data/eras";
 
 const BASE = import.meta.env.BASE_URL;
 const src = (p?: string) => (p ? `${BASE}${p}` : undefined);
@@ -28,6 +29,8 @@ interface StoryTimelineProps {
   countryName: string;
   stories: Story[];
   onClose: () => void;
+  /** Historická období (pás pod osou); volitelné (jen státy s periodizací). */
+  eras?: Era[];
 }
 
 /**
@@ -36,7 +39,7 @@ interface StoryTimelineProps {
  * ladně dojíždí a snapne na nejbližší kostku), kolečko/šipky = krok, klik/hover
  * = přejezd na kostku. Pod osou fade-in aktivní příspěvek.
  */
-export function StoryTimeline({ countryName, stories, onClose }: StoryTimelineProps) {
+export function StoryTimeline({ countryName, stories, onClose, eras }: StoryTimelineProps) {
   const stripRef = useRef<HTMLDivElement>(null);
   const [vw, setVw] = useState(0);
   const vwRef = useRef(0);
@@ -76,6 +79,38 @@ export function StoryTimeline({ countryName, stories, onClose }: StoryTimelinePr
     });
     return { centers, gaps, width: centers[centers.length - 1] ?? 0 };
   }, [stories, isMobile]);
+
+  // Pás období: rok → x podle stejného (nelineárního) rozložení jako kostky.
+  const eraSegs = useMemo(() => {
+    if (!eras || stories.length === 0) return [] as { name: string; tint: string; left: number; width: number }[];
+    const ys = stories.map(repYear);
+    const xs = layout.centers;
+    const last = xs.length - 1;
+    const yearToX = (y: number) => {
+      if (last === 0) return xs[0];
+      if (y <= ys[0]) return xs[0] + (y - ys[0]) * ((xs[1] - xs[0]) / ((ys[1] - ys[0]) || 1));
+      if (y >= ys[last])
+        return xs[last] + (y - ys[last]) * ((xs[last] - xs[last - 1]) / ((ys[last] - ys[last - 1]) || 1));
+      for (let i = 0; i < last; i++) {
+        if (y >= ys[i] && y <= ys[i + 1]) {
+          const t = (y - ys[i]) / ((ys[i + 1] - ys[i]) || 1);
+          return xs[i] + t * (xs[i + 1] - xs[i]);
+        }
+      }
+      return xs[last];
+    };
+    const pad = (isMobile ? 150 : 210) / 2;
+    const lo = xs[0] - pad;
+    const hi = xs[last] + pad;
+    const clamp = (v: number) => Math.max(lo, Math.min(hi, v));
+    return eras
+      .map((e) => {
+        const l = clamp(yearToX(e.from));
+        const r = clamp(yearToX(e.to));
+        return { name: e.name, tint: e.tint, left: l, width: Math.max(0, r - l) };
+      })
+      .filter((s) => s.width > 2);
+  }, [eras, stories, layout, isMobile]);
 
   const centerX = useCallback(
     (i: number) => vwRef.current / 2 - (layout.centers[i] ?? 0),
@@ -166,6 +201,7 @@ export function StoryTimeline({ countryName, stories, onClose }: StoryTimelinePr
   }, [goTo, nearestTo, x, onClose]);
 
   const activeStory = stories[active];
+  const activeEra = eras && activeStory ? eraNameForYear(repYear(activeStory), eras) : undefined;
   const dragMin = vw / 2 - (layout.centers[stories.length - 1] ?? 0);
   const dragMax = vw / 2;
 
@@ -202,13 +238,27 @@ export function StoryTimeline({ countryName, stories, onClose }: StoryTimelinePr
           onDragStart={() => (movedRef.current = true)}
         >
           {/* linka osy */}
-          <div className="absolute left-0 right-0 top-[84%] h-[2px] -translate-y-1/2 bg-paper-light/15" />
+          <div className="absolute left-0 right-0 top-[74%] h-[2px] -translate-y-1/2 bg-paper-light/15" />
+
+          {/* pás historických období (pod osou, scrolluje s pásem) */}
+          {eraSegs.map((e, i) => (
+            <div
+              key={`era-${i}`}
+              className="absolute top-[80%] flex h-[15%] items-center justify-center overflow-hidden rounded-md border border-white/5 px-2"
+              style={{ left: e.left, width: e.width, background: e.tint }}
+              title={e.name}
+            >
+              <span className="truncate text-center font-display text-[10px] font-bold uppercase tracking-wide text-paper-light/75 md:text-xs">
+                {e.name}
+              </span>
+            </div>
+          ))}
 
           {/* značky zkrácených mezer */}
           {layout.gaps.map((g, i) => (
             <div
               key={`gap-${i}`}
-              className="absolute top-[84%] -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-black/30 px-2 py-0.5 font-sans text-[10px] text-paper-light/40"
+              className="absolute top-[74%] -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-black/30 px-2 py-0.5 font-sans text-[10px] text-paper-light/40"
               style={{ left: g.x }}
             >
               … {g.years} let
@@ -271,6 +321,7 @@ export function StoryTimeline({ countryName, stories, onClose }: StoryTimelinePr
             >
               <div className="font-serif text-sm italic text-paper-light/60">
                 {formatRange(activeStory.yearFrom, activeStory.yearTo)} · {countryName}
+                {activeEra && <span className="text-sun/70"> · {activeEra}</span>}
               </div>
               <h2 className="mt-1 font-display text-2xl font-extrabold leading-tight md:text-3xl">
                 {activeStory.title}
@@ -349,7 +400,7 @@ function LensCard({
       onMouseEnter={onHover}
       onFocus={onHover}
       onClick={onSelect}
-      className="absolute top-[84%] z-10 -translate-x-1/2 -translate-y-full pb-3"
+      className="absolute top-[74%] z-10 -translate-x-1/2 -translate-y-full pb-3"
       style={{ left: cx, opacity }}
     >
       <motion.div
