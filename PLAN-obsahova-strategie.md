@@ -334,6 +334,20 @@ Studio · Profil · Odhlásit). Tweaks panel = samostatný dev overlay, ne v nav
 - **Admin:** KPI (příběhy, autoři, čtenáři/MAU, zobrazení, dokončenost) · grafy (zobrazení & registrace v čase, žebříček autorů, rozložení obsahu podle kontinentu/země a fakt/pověst/fikce) · moderační fronta.
 - **Čtenář:** level + XP, odznaky (zamčené/odemčené), přečtené příběhy, streak (placeholder).
 
+## 9g. Mobile-first + PWA (rozhodnuto 2026-07-02)
+
+**Pilíř: celá appka je mobile-first** — čtenář, časová osa, mapa, Studio, Creator, onboarding,
+vše optimalizované pro dotyk. Cíl: **autoři si stáhnou PWA** (instalovatelná appka).
+
+- **Časová osa (hotovo):** menší kostky (celé viditelné) + swipe vlevo/vpravo.
+- **Mapa — lite mód (hotovo, 1. pass):** na `(max-width:767px)`/`(pointer:coarse)` se vypíná
+  filtr `#rough-edges` (feTurbulence+feDisplacement se jinak přepočítával každý snímek → sekání).
+  - *Deeper (backlog):* zvážit zjednodušenou geometrii pro mobil, méně re-renderů při zoomu,
+    případně canvas/raster renderer; vypnout i další statické textury na slabých zařízeních.
+- **PWA (backlog, brzy):** `manifest.webmanifest` (ikony, splash, `display: standalone`, theme
+  color) + service worker (offline shell, cache assetů) → instalace na plochu. Cíl hlavně pro autory.
+- **Creator/onboarding na mobilu:** sken obličeje + ≥3 fotky = přirozené přes mobilní kameru.
+
 ## 10. Deferred / backlog
 
 - Admin/operátor režim, authoring pipeline, `draft→published` schvalovací brána (fáze 2).
