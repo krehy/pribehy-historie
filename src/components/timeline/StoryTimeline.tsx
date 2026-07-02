@@ -16,9 +16,9 @@ import { eraForYear, type Era } from "@/data/eras";
 import { rulerBySlug, rulersForRange, figureImage, reignLabel, type Ruler } from "@/data/rulers";
 import { ChromaImage } from "@/components/story/ChromaImage";
 import { CharacterProfileView } from "@/components/character/CharacterProfileView";
+import { assetUrl } from "@/lib/assetUrl";
 
-const BASE = import.meta.env.BASE_URL;
-const src = (p?: string) => (p ? `${BASE}${p}` : undefined);
+const src = assetUrl;
 const repYear = (s: Story) => (s.yearFrom + s.yearTo) / 2;
 
 // Měřítko osy (proporční podle roku, s omezením prázdných mezer).

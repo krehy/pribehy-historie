@@ -7,8 +7,7 @@ import { BookOpen } from "lucide-react";
 import { authorBySlug } from "@/data/authors";
 import { storiesByAuthor, isPublished, formatYear } from "@/lib/history";
 import { authorSummary } from "@/lib/mockStats";
-
-const BASE = import.meta.env.BASE_URL;
+import { assetUrl } from "@/lib/assetUrl";
 
 export default function AuthorProfile() {
   const { slug = "" } = useParams();
@@ -29,7 +28,7 @@ export default function AuthorProfile() {
 
   const works = storiesByAuthor(author.name).filter(isPublished);
   const sum = authorSummary(author.name);
-  const character = `${BASE}${author.character}`;
+  const character = assetUrl(author.character);
 
   return (
     <div className="bg-paper">

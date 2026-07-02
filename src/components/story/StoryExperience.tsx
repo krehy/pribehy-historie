@@ -22,9 +22,10 @@ import { countryName } from "@/data/countries";
 import { formatRange } from "@/lib/history";
 import { rulerBySlug, reignLabel, type Ruler } from "@/data/rulers";
 import { ChromaImage } from "./ChromaImage";
+import { assetUrl } from "@/lib/assetUrl";
 
-const BASE = import.meta.env.BASE_URL;
-const url = (p: string) => `${BASE}${p}`;
+// Konzumenti níž předávají vždy povinný string → assetUrl nikdy nevrátí undefined.
+const url = (p: string) => assetUrl(p)!;
 
 type QuizBeat = Extract<StoryBeat, { kind: "quiz" }>;
 

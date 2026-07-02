@@ -6,8 +6,7 @@
  */
 import { STORIES, type Story } from "@/data/stories";
 import { rulerBySlug, figureImage, CZ_RULERS } from "@/data/rulers";
-
-const BASE = import.meta.env.BASE_URL;
+import { assetUrl } from "@/lib/assetUrl";
 
 // — Osy postavy (viz DESIGN.md) —
 /** Co postava JE (globální). */
@@ -272,7 +271,7 @@ export function rulerOptions(): RulerOption[] {
 export function rulerMedia(slug: string): string {
   const r = rulerBySlug(slug);
   if (!r) return facePlaceholder("?", "ruler");
-  return BASE + figureImage(r).src;
+  return assetUrl(figureImage(r).src)!;
 }
 
 /** Kanonická identita panovníka (jméno + bio) pro převzetí do karty. */

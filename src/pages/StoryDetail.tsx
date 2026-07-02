@@ -8,8 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CompassRose } from "@/components/map/CompassRose";
 import { StoryExperience } from "@/components/story/StoryExperience";
-
-const BASE = import.meta.env.BASE_URL;
+import { assetUrl } from "@/lib/assetUrl";
 
 export default function StoryDetail() {
   const { slug } = useParams();
@@ -81,7 +80,7 @@ export default function StoryDetail() {
         className="mt-8 overflow-hidden rounded-lg border border-stroke/40 shadow-parchment"
       >
         <img
-          src={story.media && story.mediaType !== "video" ? `${BASE}${story.media}` : story.coverImage}
+          src={story.media && story.mediaType !== "video" ? assetUrl(story.media) : story.coverImage}
           alt={story.title}
           className="w-full"
         />

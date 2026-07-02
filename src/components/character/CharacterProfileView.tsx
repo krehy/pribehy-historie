@@ -5,9 +5,9 @@ import { figureImage, lifespanLabel, type Ruler } from "@/data/rulers";
 import { formatYear } from "@/lib/history";
 import type { Story } from "@/data/stories";
 import { ChromaImage } from "@/components/story/ChromaImage";
+import { assetUrl } from "@/lib/assetUrl";
 
-const BASE = import.meta.env.BASE_URL;
-const img = (p: string) => (/^https?:\/\//.test(p) ? p : `${BASE}${p}`);
+const img = (p: string) => assetUrl(p)!;
 
 function Stat({ label, children }: { label: string; children: React.ReactNode }) {
   return (

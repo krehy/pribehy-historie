@@ -19,9 +19,9 @@ import {
   type CharKind, type AudioState,
 } from "@/components/studio/creator";
 import { RichTextEditor } from "@/components/studio/RichTextEditor";
+import { assetUrl } from "@/lib/assetUrl";
 
 const plainLen = (html: string) => html.replace(/<[^>]+>/g, " ").trim().length;
-const BASE = import.meta.env.BASE_URL;
 
 type PhaseId = "article" | "characters" | "beats" | "texts" | "media" | "audio" | "publish";
 
@@ -212,7 +212,7 @@ export default function StudioEditor() {
               <input value={title} onChange={(e) => setTitle(e.target.value)} className="mb-3 w-full rounded-lg border border-zinc-300 px-3 py-2.5 font-display text-lg font-bold outline-none focus:border-amber-400" />
               {story?.media && story.mediaType !== "video" && (
                 <figure className="mb-3 overflow-hidden rounded-lg border border-zinc-200">
-                  <img src={`${BASE}${story.media}`} alt="" className="max-h-72 w-full object-cover" />
+                  <img src={assetUrl(story.media)} alt="" className="max-h-72 w-full object-cover" />
                   {story.mediaCredit && <figcaption className="bg-zinc-50 px-3 py-1.5 text-[11px] italic text-zinc-400">{story.mediaCredit}</figcaption>}
                 </figure>
               )}

@@ -7,8 +7,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Camera, Check, ImagePlus, Sparkles, User, ArrowRight, ArrowLeft } from "lucide-react";
 import { useSession } from "@/context/session";
+import { assetUrl } from "@/lib/assetUrl";
 
-const BASE = import.meta.env.BASE_URL;
 const STEPS = ["O tobě", "Tvář", "Fotky", "Charakter"];
 
 export default function BecomeAuthor() {
@@ -138,7 +138,7 @@ export default function BecomeAuthor() {
                 <h2 className="font-display text-lg font-bold">Tvůj AI charakter</h2>
               </div>
               <div className="mx-auto h-56 w-44 overflow-hidden rounded-2xl border-2 border-amber-300 bg-zinc-900 shadow">
-                <img src={`${BASE}stories/cze-charles-iv-green.jpg`} alt="charakter" className="h-full w-full object-cover" />
+                <img src={assetUrl("stories/cze-charles-iv-green.jpg")} alt="charakter" className="h-full w-full object-cover" />
               </div>
               <p className="text-xs text-zinc-500">
                 Placeholder — z reálného skenu a fotek se vygeneruje stylizovaná podobizna, která pak může
