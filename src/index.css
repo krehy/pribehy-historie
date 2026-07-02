@@ -110,7 +110,7 @@
 .ph-drawer {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 45; /* nad časovou osou (z-40), pod headerem (z-50) kvůli burgeru */
   visibility: hidden;
   pointer-events: none;
   backdrop-filter: blur(0);
