@@ -18,6 +18,8 @@ import {
   type DraftChar, type DraftBeat, type Mood, type BeatKind, type DramaRole,
   type CharKind, type AudioState,
 } from "@/components/studio/creator";
+import { toStoryBeats } from "@/components/studio/toStory";
+import type { StoryBeat } from "@/data/stories";
 import { RichTextEditor } from "@/components/studio/RichTextEditor";
 import { phaseGates } from "@/components/studio/phaseGates";
 import { PHASES, type PhaseId, type Phase } from "@/components/studio/phases";
@@ -83,6 +85,19 @@ export default function StudioEditor() {
   const [selBeat, setSelBeat] = useState<string | null>(null);
   const [audio, setAudio] = useState<AudioState>({ music: false, voiceover: false, sfx: false });
   const [published, setPublished] = useState(false);
+  // Výsledek seamu creator → čtenářský model. Pořád jen lokální mock (žádný backend):
+  // Publikace převede draftový storyboard přes adapter `toStoryBeats` a výsledek si
+  // podrží v lokálním stavu, aby seam reálně existoval a byl volaný.
+  const [publishedBeats, setPublishedBeats] = useState<StoryBeat[]>([]);
+
+  /** Publikace = zavolej adapter na seamu, zaloguj a ulož do lokálního stavu. */
+  const publish = () => {
+    const storyBeats = toStoryBeats(beats);
+    // eslint-disable-next-line no-console
+    console.log("[studio] publish → StoryBeat[]", storyBeats);
+    setPublishedBeats(storyBeats);
+    setPublished(true);
+  };
 
   const cast = useMemo(() => proposals.filter((p) => p.status === "accepted" || p.status === "locked"), [proposals]);
   const sceneBeats = useMemo(() => beats.filter((b) => b.kind === "scene" || b.kind === "scrub"), [beats]);
@@ -375,7 +390,7 @@ export default function StudioEditor() {
                 <div className="rounded-xl border border-green-200 bg-green-50 p-6 text-center">
                   <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-green-500 text-white"><Check className="h-6 w-6" /></div>
                   <h3 className="mt-3 font-display text-lg font-bold text-green-800">Příběh publikován 🎉</h3>
-                  <p className="mt-1 text-sm text-green-700">V prototypu nikam neputuje — v reálu by teď byl na webu.</p>
+                  <p className="mt-1 text-sm text-green-700">V prototypu nikam neputuje — v reálu by teď byl na webu. ({publishedBeats.length} beatů převedeno na čtenářský model.)</p>
                   <button onClick={() => navigate("/studio")} className="mt-4 rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-bold text-white">Zpět do Studia</button>
                 </div>
               ) : (
@@ -394,7 +409,7 @@ export default function StudioEditor() {
                   <div className="mt-4 rounded-lg bg-amber-50 px-4 py-3 text-xs text-amber-800 ring-1 ring-amber-200">
                     Fikce se vždy vizuálně odliší a drží se zdrojů události; doložené příběhy vyžadují zdroje.
                   </div>
-                  <button onClick={() => setPublished(true)} className="mt-4 inline-flex items-center gap-2 rounded-full bg-green-600 px-6 py-3 font-display text-sm font-bold text-white shadow-sm transition-transform hover:-translate-y-0.5">
+                  <button onClick={publish} className="mt-4 inline-flex items-center gap-2 rounded-full bg-green-600 px-6 py-3 font-display text-sm font-bold text-white shadow-sm transition-transform hover:-translate-y-0.5">
                     <Rocket className="h-4 w-4" /> Publikovat příběh
                   </button>
                 </>
