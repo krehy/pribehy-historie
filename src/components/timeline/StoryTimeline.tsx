@@ -39,7 +39,21 @@ export function StoryTimeline({ countryName, stories, onClose }: StoryTimelinePr
   const stripRef = useRef<HTMLDivElement>(null);
   const [vw, setVw] = useState(0);
   const [active, setActive] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
   const wheelLock = useRef(false);
+
+  // Swipe (touch/pointer) — táhnutím vlevo/vpravo se scrubuje osou.
+  const [dragOffset, setDragOffset] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragRef = useRef({ active: false, startX: 0, moved: false });
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const on = () => setIsMobile(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
 
   useLayoutEffect(() => {
     const el = stripRef.current;
@@ -53,6 +67,8 @@ export function StoryTimeline({ countryName, stories, onClose }: StoryTimelinePr
 
   // Rozložení osy: střed každé události v px (od 0) + značky zkrácených mezer.
   const layout = useMemo(() => {
+    const minSeg = isMobile ? 150 : MIN_SEG;
+    const maxSeg = isMobile ? 280 : MAX_SEG;
     const centers: number[] = [];
     const gaps: { x: number; years: number }[] = [];
     stories.forEach((s, i) => {
@@ -62,18 +78,48 @@ export function StoryTimeline({ countryName, stories, onClose }: StoryTimelinePr
       }
       const years = repYear(s) - repYear(stories[i - 1]);
       const raw = years * PX_PER_YEAR;
-      const seg = Math.max(MIN_SEG, Math.min(MAX_SEG, raw));
+      const seg = Math.max(minSeg, Math.min(maxSeg, raw));
       const x = centers[i - 1] + seg;
       centers.push(x);
-      if (raw > MAX_SEG) gaps.push({ x: (centers[i - 1] + x) / 2, years: Math.round(years) });
+      if (raw > maxSeg) gaps.push({ x: (centers[i - 1] + x) / 2, years: Math.round(years) });
     });
     return { centers, gaps, width: centers[centers.length - 1] ?? 0 };
-  }, [stories]);
+  }, [stories, isMobile]);
 
   const setActiveClamped = useCallback(
     (i: number) => setActive(Math.max(0, Math.min(stories.length - 1, i))),
     [stories.length]
   );
+
+  // Swipe: během tahu pás sleduje prst, po puštění snapne na nejbližší kostku.
+  const onPointerDown = (e: React.PointerEvent) => {
+    dragRef.current = { active: true, startX: e.clientX, moved: false };
+    setDragging(true);
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragRef.current.active) return;
+    const dx = e.clientX - dragRef.current.startX;
+    if (Math.abs(dx) > 4) dragRef.current.moved = true;
+    setDragOffset(dx);
+  };
+  const endDrag = () => {
+    if (!dragRef.current.active) return;
+    dragRef.current.active = false;
+    setDragging(false);
+    const coordAtCenter = (layout.centers[active] ?? 0) - dragOffset;
+    let nearest = active;
+    let best = Infinity;
+    layout.centers.forEach((c, i) => {
+      const d = Math.abs(c - coordAtCenter);
+      if (d < best) {
+        best = d;
+        nearest = i;
+      }
+    });
+    setDragOffset(0);
+    setActiveClamped(nearest);
+  };
 
   // Kolečko / šipky / Esc
   useEffect(() => {
@@ -101,9 +147,13 @@ export function StoryTimeline({ countryName, stories, onClose }: StoryTimelinePr
     return () => window.removeEventListener("keydown", onKey);
   }, [active, setActiveClamped, onClose]);
 
-  // Posun pásu tak, aby aktivní čtverec seděl uprostřed.
-  const trackX = vw / 2 - (layout.centers[active] ?? 0);
+  // Posun pásu tak, aby aktivní čtverec seděl uprostřed (+ offset při swipu).
+  const trackX = vw / 2 - (layout.centers[active] ?? 0) + dragOffset;
   const activeStory = stories[active];
+
+  // Na mobilu menší kostky a jemnější zvětšení, ať jsou celé vidět.
+  const cardDim = isMobile ? "clamp(60px,19vw,96px)" : "clamp(84px,13vh,150px)";
+  const activeScale = isMobile ? 1.32 : 1.55;
 
   return (
     <div className="relative flex h-full w-full flex-col bg-[#17140e] text-paper-light">
@@ -115,7 +165,14 @@ export function StoryTimeline({ countryName, stories, onClose }: StoryTimelinePr
       </div>
 
       {/* ---------- PÁS ---------- */}
-      <div ref={stripRef} className="relative h-[58%] shrink-0 overflow-hidden">
+      <div
+        ref={stripRef}
+        className="relative h-[58%] shrink-0 cursor-grab touch-pan-y overflow-hidden active:cursor-grabbing"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+      >
         {/* fokus (playhead) uprostřed */}
         <div className="pointer-events-none absolute left-1/2 top-0 z-20 h-full w-px -translate-x-1/2 bg-sun/25" />
         <div className="pointer-events-none absolute left-1/2 top-2 z-20 -translate-x-1/2">
@@ -127,7 +184,7 @@ export function StoryTimeline({ countryName, stories, onClose }: StoryTimelinePr
           className="absolute top-0 h-full"
           style={{ width: layout.width || "100%" }}
           animate={{ x: trackX }}
-          transition={{ type: "spring", stiffness: 260, damping: 32 }}
+          transition={dragging ? { duration: 0 } : { type: "spring", stiffness: 260, damping: 32 }}
         >
           {/* linka osy */}
           <div className="absolute left-0 right-0 top-[84%] h-[2px] -translate-y-1/2 bg-paper-light/15" />
@@ -151,18 +208,21 @@ export function StoryTimeline({ countryName, stories, onClose }: StoryTimelinePr
             return (
               <button
                 key={s.id}
-                onMouseEnter={() => setActive(i)}
+                onMouseEnter={() => !isMobile && setActive(i)}
                 onFocus={() => setActive(i)}
-                onClick={() => setActive(i)}
+                onClick={() => {
+                  if (dragRef.current.moved) return; // po swipu neber jako klik
+                  setActive(i);
+                }}
                 className="absolute top-[84%] z-10 -translate-x-1/2 -translate-y-full pb-3 transition-opacity duration-200"
                 style={{ left: cx, opacity: isActive ? 1 : 0.55 }}
               >
                 <div
                   className="relative overflow-hidden rounded-2xl border-2 shadow-parchment-lg transition-[transform,border-color] duration-300"
                   style={{
-                    width: "clamp(84px,13vh,150px)",
-                    height: "clamp(84px,13vh,150px)",
-                    transform: `scale(${isActive ? 1.55 : 1})`,
+                    width: cardDim,
+                    height: cardDim,
+                    transform: `scale(${isActive ? activeScale : 1})`,
                     borderColor: isActive ? "#f4c430" : "rgba(253,250,240,.25)",
                     transformOrigin: "bottom center",
                   }}
