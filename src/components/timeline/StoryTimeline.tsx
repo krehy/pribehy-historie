@@ -1,14 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  AnimatePresence,
-  animate,
-  motion,
-  useMotionValue,
-  useMotionValueEvent,
-  useTransform,
-  type MotionValue,
-} from "framer-motion";
+import { AnimatePresence, motion, useTransform, type MotionValue } from "framer-motion";
 import { BookOpen, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Play } from "lucide-react";
 import type { Story } from "@/data/stories";
 import { formatYear } from "@/lib/history";
@@ -17,6 +9,7 @@ import { rulerBySlug, rulersForRange, figureImage, reignLabel, type Ruler } from
 import { ChromaImage } from "@/components/story/ChromaImage";
 import { CharacterProfileView } from "@/components/character/CharacterProfileView";
 import { assetUrl } from "@/lib/assetUrl";
+import { useSnapFilmstrip } from "@/components/timeline/useSnapFilmstrip";
 
 const src = assetUrl;
 const repYear = (s: Story) => (s.yearFrom + s.yearTo) / 2;
@@ -25,6 +18,10 @@ const repYear = (s: Story) => (s.yearFrom + s.yearTo) / 2;
 const PX_PER_YEAR = 0.5;
 const MIN_SEG = 190;
 const MAX_SEG = 380;
+
+// EraSlider: konstantní šířka slotu zóny (→ nulové překrývání) a čára přítomnosti zleva.
+const ERA_W = 184;
+const ERA_P = 72;
 
 /** Médium karty (náhled) — jiné než pozadí u vlajkových příběhů. */
 function cardMedia(s: Story): { src?: string; video: boolean } {
@@ -61,12 +58,9 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
   const [filterRuler, setFilterRuler] = useState<Ruler | null>(null);
   const [vw, setVw] = useState(0);
   const vwRef = useRef(0);
-  const [active, setActive] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const [hovered, setHovered] = useState<Story | null>(null);
-  const wheelLock = useRef(false);
   const movedRef = useRef(false);
-  const x = useMotionValue(0);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
@@ -99,30 +93,12 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
 
   const centerX = useCallback((i: number) => vwRef.current / 2 - (layout.centers[i] ?? 0), [layout]);
 
-  const nearestTo = useCallback(
-    (xv: number) => {
-      const target = vwRef.current / 2 - xv;
-      let n = 0;
-      let best = Infinity;
-      layout.centers.forEach((c, i) => {
-        const d = Math.abs(c - target);
-        if (d < best) {
-          best = d;
-          n = i;
-        }
-      });
-      return n;
-    },
-    [layout]
-  );
-
-  const goTo = useCallback(
-    (i: number) => {
-      const idx = Math.max(0, Math.min(stories.length - 1, i));
-      animate(x, centerX(idx), { type: "spring", stiffness: 260, damping: 32 });
-    },
-    [x, centerX, stories.length]
-  );
+  // Snap-filmstrip jádro (viz useSnapFilmstrip) — sdílené s EraSliderem. wheelLock 90 ms.
+  const { x, activeIndex: active, nearest, goTo, stepBy, dragTransition } = useSnapFilmstrip({
+    count: stories.length,
+    centerFor: centerX,
+    wheelLockMs: 90,
+  });
 
   useLayoutEffect(() => {
     const el = stripRef.current;
@@ -141,11 +117,10 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
   }, []);
 
   useEffect(() => {
-    setActive(0);
     setHovered(null);
     setMode("osa");
     setFilterRuler(null);
-    x.set(vwRef.current / 2);
+    x.set(vwRef.current / 2); // → change event → active = 0 (centers[0] = 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stories]);
 
@@ -189,12 +164,6 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
     [mode, toGrid, toOsa]
   );
 
-  useMotionValueEvent(x, "change", (v) => {
-    if (!vwRef.current) return;
-    const n = nearestTo(v);
-    setActive((prev) => (prev === n ? prev : n));
-  });
-
   useEffect(() => {
     const el = stripRef.current;
     if (!el) return;
@@ -202,26 +171,23 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
       if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
       e.preventDefault();
       setHovered(null);
-      if (wheelLock.current) return;
-      wheelLock.current = true;
       const dir = e.deltaY > 0 ? 1 : -1;
       const step = Math.min(4, Math.max(1, Math.round(Math.abs(e.deltaY) / 80)));
-      goTo(nearestTo(x.get()) + dir * step);
-      window.setTimeout(() => (wheelLock.current = false), 90);
+      stepBy(dir * step);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [goTo, nearestTo, x]);
+  }, [stepBy]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
-      if (e.key === "ArrowRight") goTo(nearestTo(x.get()) + 1);
-      if (e.key === "ArrowLeft") goTo(nearestTo(x.get()) - 1);
+      if (e.key === "ArrowRight") goTo(nearest(x.get()) + 1);
+      if (e.key === "ArrowLeft") goTo(nearest(x.get()) - 1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [goTo, nearestTo, x, onClose]);
+  }, [goTo, nearest, x, onClose]);
 
   // Pás epoch (grouping pod osou) — segment přes příběhy dané epochy.
   const eraSegs = useMemo(() => {
@@ -428,7 +394,7 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
           drag="x"
           dragConstraints={{ left: dragMin, right: dragMax }}
           dragElastic={0.06}
-          dragTransition={{ power: 0.3, timeConstant: 340, modifyTarget: (t) => centerX(nearestTo(t)) }}
+          dragTransition={dragTransition}
           onPointerDownCapture={() => (movedRef.current = false)}
           onDragStart={() => {
             movedRef.current = true;
@@ -868,35 +834,29 @@ function EraSlider({
   activeName?: string;
   onPick: (e: Era) => void;
 }) {
-  const x = useMotionValue(0);
   const moved = useRef(false);
-  const wheelLock = useRef(false);
-  const W = 184; // šířka slotu zóny (konstantní → žádné překrývání)
-  const P = 72; // čára přítomnosti zleva
-  const clampIdx = (i: number) => Math.max(0, Math.min(eras.length - 1, i));
-  const nearest = (xv: number) => clampIdx(Math.round((P - xv) / W));
-  const [idx, setIdx] = useState(() => Math.max(0, eras.findIndex((e) => e.name === activeName)));
+  const startIdx = Math.max(0, eras.findIndex((e) => e.name === activeName));
+  const centerFor = useCallback((i: number) => ERA_P - i * ERA_W, []);
 
-  // Aktivní index odvozen z x (jako osa) — bez zpětného snapu → žádná smyčka.
-  useMotionValueEvent(x, "change", (xv) => {
-    const n = nearest(xv);
-    setIdx((p) => (p === n ? p : n));
+  // Stejné snap-filmstrip jádro jako hlavní osa (uniformní rozteč slotů). wheelLock 240 ms.
+  // Aktivní index odvozen z x → bez zpětného snapu → žádná smyčka. onActive syncuje rodiče.
+  const { x, activeIndex: idx, goTo, stepBy, dragTransition } = useSnapFilmstrip({
+    count: eras.length,
+    centerFor,
+    wheelLockMs: 240,
+    initialIndex: startIdx,
+    onActive: (i) => {
+      const e = eras[i];
+      if (e && e.name !== activeName) onPick(e);
+    },
   });
 
   // Výchozí pozice (jednou).
   useLayoutEffect(() => {
-    x.set(P - Math.max(0, eras.findIndex((e) => e.name === activeName)) * W);
+    x.set(ERA_P - startIdx * ERA_W);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sync rodiče (náhled/panovníci/karty) při přejezdu do jiné zóny.
-  useEffect(() => {
-    const e = eras[idx];
-    if (e && e.name !== activeName) onPick(e);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idx]);
-
-  const goTo = (i: number) => animate(x, P - clampIdx(i) * W, { type: "spring", stiffness: 260, damping: 32 });
   const pick = (i: number) => {
     if (moved.current) return; // po tažení neaktivuj klik
     goTo(i);
@@ -908,31 +868,29 @@ function EraSlider({
     e.stopPropagation();
     if (e.cancelable) e.preventDefault();
     const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-    if (Math.abs(d) < 2 || wheelLock.current) return;
-    wheelLock.current = true;
-    goTo(nearest(x.get()) + (d > 0 ? 1 : -1));
-    window.setTimeout(() => (wheelLock.current = false), 240);
+    if (Math.abs(d) < 2) return;
+    stepBy(d > 0 ? 1 : -1);
   };
 
   return (
     <div className="relative h-28 w-full overflow-hidden" onWheel={onWheel}>
       {/* čára přítomnosti — vlevo */}
-      <div className="pointer-events-none absolute top-0 z-20 h-full w-px bg-sun/50" style={{ left: P }} />
-      <div className="pointer-events-none absolute top-0 z-20 -translate-x-1/2" style={{ left: P }}>
+      <div className="pointer-events-none absolute top-0 z-20 h-full w-px bg-sun/50" style={{ left: ERA_P }} />
+      <div className="pointer-events-none absolute top-0 z-20 -translate-x-1/2" style={{ left: ERA_P }}>
         <div className="h-0 w-0 border-x-[6px] border-t-[8px] border-x-transparent border-t-sun" />
       </div>
       <motion.div
         className="absolute inset-y-0 left-0 cursor-grab active:cursor-grabbing"
-        style={{ x, width: eras.length * W }}
+        style={{ x, width: eras.length * ERA_W }}
         drag="x"
-        dragConstraints={{ left: P - (eras.length - 1) * W, right: P }}
+        dragConstraints={{ left: ERA_P - (eras.length - 1) * ERA_W, right: ERA_P }}
         dragElastic={0.06}
-        dragTransition={{ power: 0.3, timeConstant: 340, modifyTarget: (t) => P - nearest(t) * W }}
+        dragTransition={dragTransition}
         onPointerDownCapture={() => (moved.current = false)}
         onDragStart={() => (moved.current = true)}
       >
         {eras.map((e, i) => (
-          <EpochCard key={e.name} era={e} stories={stories} i={i} w={W} active={i === idx} onSelect={() => pick(i)} />
+          <EpochCard key={e.name} era={e} stories={stories} i={i} w={ERA_W} active={i === idx} onSelect={() => pick(i)} />
         ))}
       </motion.div>
     </div>
