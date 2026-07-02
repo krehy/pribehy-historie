@@ -20,7 +20,7 @@ import {
 import type { Story, StoryBeat } from "@/data/stories";
 import { countryName } from "@/data/countries";
 import { formatRange } from "@/lib/history";
-import { rulerBySlug, type Ruler } from "@/data/rulers";
+import { rulerBySlug, reignLabel, type Ruler } from "@/data/rulers";
 import { ChromaImage } from "./ChromaImage";
 
 const BASE = import.meta.env.BASE_URL;
@@ -467,7 +467,7 @@ function StarSweep() {
 
 /** Textový blok postavy — eyebrow, jméno, titul·vláda·rod, bio, fakta, hláška. */
 function RulerInfo({ ruler }: { ruler: Ruler }) {
-  const reign = `${ruler.reignFrom}–${ruler.reignTo === 2025 ? "dnes" : ruler.reignTo}`;
+  const reign = reignLabel(ruler);
   return (
     <>
       <span className="inline-flex items-center gap-2 rounded-full bg-sun/15 px-3 py-1 font-display text-xs font-bold uppercase tracking-wide text-sun">
@@ -501,7 +501,7 @@ function RulerInfo({ ruler }: { ruler: Ruler }) {
 /** Fullscreen představení postavy příběhu (Ruler) — figura + fakta/hlášky (gtw styl). */
 function CharacterCard({ ruler, index, first }: { ruler: Ruler; index: number; first?: boolean }) {
   const flip = index % 2 === 1;
-  const reign = `${ruler.reignFrom}–${ruler.reignTo === 2025 ? "dnes" : ruler.reignTo}`;
+  const reign = reignLabel(ruler);
   return (
     <section
       {...(first ? { "data-intro": "" } : {})}

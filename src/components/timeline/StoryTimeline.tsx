@@ -13,7 +13,7 @@ import { BookOpen, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Play } fro
 import type { Story } from "@/data/stories";
 import { formatYear } from "@/lib/history";
 import { eraForYear, type Era } from "@/data/eras";
-import { rulerBySlug, rulersForRange, figureImage, type Ruler } from "@/data/rulers";
+import { rulerBySlug, rulersForRange, figureImage, reignLabel, type Ruler } from "@/data/rulers";
 import { ChromaImage } from "@/components/story/ChromaImage";
 import { CharacterProfileView } from "@/components/character/CharacterProfileView";
 
@@ -767,8 +767,6 @@ function SpeechBubble({ text, tail = "bottom" }: { text: string; tail?: "bottom"
 function rulerStories(stories: Story[], r: Ruler): Story[] {
   return stories.filter((s) => s.yearFrom <= r.activeTo && s.yearTo >= r.activeFrom);
 }
-
-const reignLabel = (r: Ruler) => `${r.activeFrom}–${r.activeTo === 2025 ? "dnes" : r.activeTo}`;
 
 /** Příběhy dané epochy (repYear v rozsahu epochy). */
 function storiesForEra(stories: Story[], era: Era): Story[] {

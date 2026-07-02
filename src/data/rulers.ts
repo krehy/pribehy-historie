@@ -214,6 +214,14 @@ export function lifespanLabel(r: Character): string {
   return `${r.activeFrom}–${r.activeTo === 2025 ? "dnes" : r.activeTo}`;
 }
 
+/** „1346–1378", „2023–dnes" — rozsah vlády/floruitu; `2025→dnes`. Panovník = roky vlády,
+ * ostatní postavy floruit (reignFrom/To chybí → fallback na activeFrom/To). */
+export function reignLabel(c: Character): string {
+  const from = c.reignFrom ?? c.activeFrom;
+  const to = c.reignTo ?? c.activeTo;
+  return `${from}–${to === 2025 ? "dnes" : to}`;
+}
+
 /** Panovníci daného státu (zatím jen Česko). */
 export function rulersForCountry(a3: string | null | undefined): Character[] {
   return charactersForCountry(a3).filter((c) => c.category === "ruler");
