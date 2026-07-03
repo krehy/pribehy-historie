@@ -17,6 +17,39 @@ import { useSnapFilmstrip } from "@/components/timeline/useSnapFilmstrip";
 const src = assetUrl;
 const repYear = (s: Story) => (s.yearFrom + s.yearTo) / 2;
 
+/**
+ * Návratový kontext osy — uloží se při otevření příběhu, aby „Zpět" z článku vrátilo
+ * uživatele přesně tam, kde byl: z osy na ten příběh, z přehledu na přehled s filtry.
+ */
+interface TLReturn {
+  from: "osa" | "grid";
+  storySlug: string;
+  eraName?: string;
+  charSlug?: string;
+}
+const RETURN_KEY = "ph:tl-return";
+function saveReturn(ctx: TLReturn) {
+  try {
+    sessionStorage.setItem(RETURN_KEY, JSON.stringify(ctx));
+  } catch {
+    /* ignore */
+  }
+}
+function readReturn(): TLReturn | null {
+  try {
+    return JSON.parse(sessionStorage.getItem(RETURN_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+function clearReturn() {
+  try {
+    sessionStorage.removeItem(RETURN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 // Měřítko osy (proporční podle roku, s omezením prázdných mezer).
 const PX_PER_YEAR = 0.5;
 const MIN_SEG = 190;
@@ -57,7 +90,13 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
   const stripRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const modeLock = useRef(false);
-  const [mode, setMode] = useState<"osa" | "grid">("osa");
+  const returnRef = useRef<TLReturn | null>(readReturn()); // návrat z článku — spotřebuje se na mountu
+  const [mode, setMode] = useState<"osa" | "grid">(returnRef.current?.from === "grid" ? "grid" : "osa");
+  // Obnova filtrů přehledu (epocha + postava) při návratu z článku otevřeného z přehledu.
+  const [gridRestore] = useState(() => {
+    const r = returnRef.current;
+    return r?.from === "grid" ? { eraName: r.eraName, charSlug: r.charSlug } : undefined;
+  });
   const [filterRuler, setFilterRuler] = useState<Ruler | null>(null);
   const [vw, setVw] = useState(0);
   const vwRef = useRef(0);
@@ -96,11 +135,18 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
 
   const centerX = useCallback((i: number) => vwRef.current / 2 - (layout.centers[i] ?? 0), [layout]);
 
+  // Návrat z článku → vycentruj rovnou na ten příběh (jinak 0). Musí být initialIndex,
+  // aby `measure()` (ResizeObserver) při slide-up nesnapovalo zpět na story 0.
+  const restoreIdx = returnRef.current
+    ? Math.max(0, stories.findIndex((s) => s.slug === returnRef.current!.storySlug))
+    : 0;
+
   // Snap-filmstrip jádro (viz useSnapFilmstrip) — sdílené s EraSliderem. wheelLock 90 ms.
   const { x, activeIndex: active, nearest, goTo, stepBy, dragTransition } = useSnapFilmstrip({
     count: stories.length,
     centerFor: centerX,
     wheelLockMs: 90,
+    initialIndex: restoreIdx,
   });
 
   useLayoutEffect(() => {
@@ -121,9 +167,19 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
 
   useEffect(() => {
     setHovered(null);
-    setMode("osa");
     setFilterRuler(null);
-    x.set(vwRef.current / 2); // → change event → active = 0 (centers[0] = 0)
+    const ret = returnRef.current;
+    if (ret) {
+      // Návrat z článku — vycentruj na ten příběh; mód (osa/grid) je z initu.
+      // Ref NEnulujeme (StrictMode spouští efekt 2×; obě spuštění musí být idempotentní).
+      // sessionStorage vyčistíme, aby se to nepoužilo při pozdějším remountu (jiná země).
+      clearReturn();
+      const idx = stories.findIndex((s) => s.slug === ret.storySlug);
+      x.set(vwRef.current / 2 - (idx >= 0 ? layout.centers[idx] ?? 0 : 0));
+    } else {
+      setMode("osa");
+      x.set(vwRef.current / 2); // → change event → active = 0 (centers[0] = 0)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stories]);
 
@@ -213,7 +269,12 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
     return out;
   }, [eras, stories, layout, isMobile]);
 
-  const launch = (slug: string) => navigate(`/pribeh/${slug}`);
+  const navigateStory = (slug: string) => navigate(`/pribeh/${slug}`);
+  // Otevření z OSY → ulož návrat na tento příběh. (Přehled si ukládá vlastní kontext.)
+  const launch = (slug: string) => {
+    saveReturn({ from: "osa", storySlug: slug });
+    navigateStory(slug);
+  };
 
   const centeredStory = stories[active] ?? null;
   const focusStory = hovered ?? centeredStory;
@@ -519,7 +580,8 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
           onSelectRuler={(r) => setFilterRuler(r)}
           onClearFilter={() => setFilterRuler(null)}
           onBackToOsa={toOsa}
-          onLaunch={launch}
+          onLaunch={navigateStory}
+          restore={gridRestore}
         />
       </motion.div>
     </div>
@@ -937,6 +999,7 @@ function TimelineGrid({
   onClearFilter,
   onBackToOsa,
   onLaunch,
+  restore,
 }: {
   stories: Story[];
   eras?: Era[];
@@ -950,23 +1013,36 @@ function TimelineGrid({
   onClearFilter: () => void;
   onBackToOsa: () => void;
   onLaunch: (slug: string) => void;
+  /** Obnova při návratu z článku — epocha + slug filtrované postavy. */
+  restore?: { eraName?: string; charSlug?: string };
 }) {
   const eraList = useMemo(() => eras ?? [], [eras]);
-  const [activeEra, setActiveEra] = useState<Era | null>(null);
+  // Obnova z návratu (článek z přehledu) — počáteční epocha i filtr postavy rovnou z restore.
+  // (Init stavu je StrictMode-safe; efekt by druhé spuštění přebilo seedem.)
+  const [activeEra, setActiveEra] = useState<Era | null>(
+    () => (restore?.eraName ? (eras ?? []).find((e) => e.name === restore.eraName) ?? null : null)
+  );
   const [hoverChar, setHoverChar] = useState<Character | null>(null);
-  const [selectedChar, setSelectedChar] = useState<Character | null>(null);
+  const [selectedChar, setSelectedChar] = useState<Character | null>(
+    () => (restore?.charSlug ? rulerBySlug(restore.charSlug) ?? null : null)
+  );
   // Re-mount klíč EraSlideru — mění se při každém otevření přehledu, aby se pás zón
   // okamžitě přepozicoval na předvybranou epochu (bez animační smyčky přes goTo).
   const [openSeq, setOpenSeq] = useState(0);
+  // init = open: restore mount startuje jako otevřený → seed se přeskočí a nepřebije restore.
+  const prevOpenRef = useRef(open);
 
-  // PŘI KAŽDÉM OTEVŘENÍ přehledu předvyber epochu aktivní na horní ose (seedEraName)
-  // → časová synchronizace osa ↔ přehled. Efekt závisí jen na `open`, takže spolehlivě
-  // reaguje na false→true přechod; seedEraName/eraList/stories čte aktuální ze závěru.
+  // PŘI OTEVŘENÍ přehledu (false→true) předvyber epochu z osy (seedEraName). Na restore
+  // mountu (`wasOpen`) se přeskočí — počáteční epocha/filtr jsou z restore.
   useEffect(() => {
-    if (!open || eraList.length === 0) return;
+    const wasOpen = prevOpenRef.current;
+    prevOpenRef.current = open;
+    if (!open || eraList.length === 0 || wasOpen) return;
     const seed = seedEraName ? eraList.find((e) => e.name === seedEraName) : undefined;
     const target = seed ?? eraList.find((e) => storiesForEra(stories, e).length) ?? eraList[0] ?? null;
     setActiveEra(target);
+    setSelectedChar(null);
+    setHoverChar(null);
     setOpenSeq((s) => s + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -989,11 +1065,19 @@ function TimelineGrid({
   // Klik na postavu = filtr příspěvků; karta se plynule rozšíří (hover i výběr).
   const shown = selectedChar ? storiesWithChar(stories, selectedChar) : epochStories;
 
-  // Přepnutí epochy zruší filtr postavy.
-  useEffect(() => {
+  // Uživatelská změna epochy (v EraSlideru) zruší filtr postavy. (Programové set —
+  // seed/restore — filtr NEruší, proto to není efekt na [activeEra].)
+  const pickEra = (era: Era) => {
+    setActiveEra(era);
     setSelectedChar(null);
     setHoverChar(null);
-  }, [activeEra]);
+  };
+
+  // Otevření příběhu Z PŘEHLEDU → ulož návrat (epocha + filtr), ať se sem „Zpět" vrátí.
+  const launchWithReturn = (slug: string) => {
+    saveReturn({ from: "grid", storySlug: slug, eraName: activeEra?.name, charSlug: selectedChar?.slug });
+    onLaunch(slug);
+  };
 
   // ── Profil postavy (klik na panovníka) ──
   if (filterRuler) {
@@ -1015,7 +1099,7 @@ function TimelineGrid({
 
   // ── Přehled (varianta C): kompaktní header [preview | PÁS ZÓN] + postavy + karty ──
   return (
-    <div className="relative min-h-full pb-16">
+    <div className="relative min-h-full pb-6 md:pb-16">
       {/* Header — širokoúhlý preview aktivní epochy + PÁS ZÓN (sdílený scrubber/filtr) */}
       <div className={"sticky top-0 z-30 border-b border-paper-light/10 bg-[#17140e]/95 px-5 backdrop-blur transition-[padding] duration-300 md:px-8 " + (selectedChar ? "py-2" : "py-4")}>
         <div className={"flex items-center justify-between gap-3 " + (selectedChar ? "mb-1.5" : "mb-3")}>
@@ -1028,13 +1112,13 @@ function TimelineGrid({
           <span className="font-display text-sm font-bold text-paper-light/80">{activeEra?.name}</span>
         </div>
         {/* PÁS ZÓN — při vybrané postavě se smrští do kompaktního pásu (víc místa na filtr). */}
-        <EraSlider key={openSeq} eras={eraList} stories={stories} activeName={activeEra?.name} compact={!!selectedChar} onPick={setActiveEra} />
+        <EraSlider key={openSeq} eras={eraList} stories={stories} activeName={activeEra?.name} compact={!!selectedChar} onPick={pickEra} />
       </div>
 
       {/* Obsah — postavy epochy (navázané) + karty příspěvků */}
-      <div className="mx-auto max-w-6xl px-5 py-6 md:px-8">
+      <div className="mx-auto max-w-6xl px-5 py-3 md:px-8 md:py-6">
         {epochChars.length > 0 && (
-          <section className="mb-6" onMouseLeave={() => setHoverChar(null)}>
+          <section className="mb-3 md:mb-6" onMouseLeave={() => setHoverChar(null)}>
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
               <h2 className="font-display text-lg font-extrabold">Osobnosti{activeEra ? ` · ${activeEra.name}` : ""}</h2>
             </div>
@@ -1054,7 +1138,7 @@ function TimelineGrid({
           </section>
         )}
 
-        <h2 className="mb-3 mt-6 flex flex-wrap items-baseline gap-x-2 font-display text-lg font-extrabold">
+        <h2 className="mb-3 mt-3 flex flex-wrap items-baseline gap-x-2 font-display text-lg font-extrabold md:mt-6">
           {selectedChar ? `Příspěvky · ${selectedChar.name}` : `Příspěvky${activeEra ? ` · ${activeEra.name}` : ""}`}
           <span className="font-serif text-sm font-normal italic text-paper-light/50">· {shown.length}</span>
           {selectedChar && (
@@ -1066,12 +1150,13 @@ function TimelineGrid({
             </button>
           )}
         </h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {/* Mobil: horizontální řádek (scroll jen doleva/doprava, žádný svislý). Desktop: grid. */}
+        <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0 lg:grid-cols-4">
           {shown.map((s) => (
-            <GridCard key={s.id} story={s} onLaunch={onLaunch} />
+            <GridCard key={s.id} story={s} onLaunch={launchWithReturn} />
           ))}
           {shown.length === 0 && (
-            <div className="col-span-full py-8 text-center font-serif text-sm italic text-paper-light/50">
+            <div className="py-8 text-center font-serif text-sm italic text-paper-light/50 sm:col-span-full">
               Pro tuto epochu / postavu zatím nemáme příspěvky.
             </div>
           )}
@@ -1180,7 +1265,7 @@ function GridCard({ story, onLaunch }: { story: Story; onLaunch: (slug: string) 
   return (
     <button
       onClick={() => onLaunch(story.slug)}
-      className="group flex flex-col overflow-hidden rounded-xl border-2 border-paper-light/15 bg-paper-light/5 text-left transition-transform hover:-translate-y-1 hover:border-sun/70"
+      className="group flex w-44 shrink-0 flex-col overflow-hidden rounded-xl border-2 border-paper-light/15 bg-paper-light/5 text-left transition-transform hover:-translate-y-1 hover:border-sun/70 sm:w-auto"
     >
       <div className="relative aspect-[4/3] overflow-hidden">
         {media.video ? (

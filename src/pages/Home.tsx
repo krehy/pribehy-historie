@@ -56,8 +56,16 @@ export default function Home() {
     else setTimelineExpanded(false); // zavření osy → sbal grid zpět na 1. fold
   }, [timelineOpen]);
 
-  // Změna země/kraje → zpět na osu (ne v rozbaleném gridu předchozí země).
-  useEffect(() => setTimelineExpanded(false), [country, region]);
+  // Změna země/kraje → zpět na osu (ne v rozbaleném gridu předchozí země). První běh
+  // (mount) přeskočíme, ať se nerozbije obnova přehledu při návratu z článku.
+  const firstCountryRef = useRef(true);
+  useEffect(() => {
+    if (firstCountryRef.current) {
+      firstCountryRef.current = false;
+      return;
+    }
+    setTimelineExpanded(false);
+  }, [country, region]);
 
   useEffect(() => () => clearTimeout(revealTimer.current), []);
 
