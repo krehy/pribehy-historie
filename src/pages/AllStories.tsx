@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { TimelineGrid } from "@/components/timeline/StoryTimeline";
 import { CountryCascadeSelect } from "@/components/stories/CountryCascadeSelect";
 import { PUBLISHED_STORIES, storiesForCountry } from "@/lib/history";
-import { erasForCountry } from "@/data/eras";
+import { erasForCountry, WORLD_ERAS } from "@/data/eras";
 import { markNavRestore } from "@/pages/Home";
 import type { Ruler } from "@/data/rulers";
 
@@ -22,6 +22,10 @@ export default function AllStories() {
     [country]
   );
 
+  // Posouvač času je vždy přítomný (1:1 jako na mapě): vlastní periodizace státu,
+  // jinak (všechny země / stát bez období) široká světová periodizace.
+  const eras = (country && erasForCountry(country)) || WORLD_ERAS;
+
   const openStory = (slug: string) => {
     markNavRestore(); // ať se „Zpět" z článku chová konzistentně
     navigate(`/pribeh/${slug}`);
@@ -32,7 +36,7 @@ export default function AllStories() {
       <TimelineGrid
         key={country ?? "all"}
         stories={stories}
-        eras={erasForCountry(country)}
+        eras={eras}
         countryCode={country ?? ""}
         open
         persistReturn={false}

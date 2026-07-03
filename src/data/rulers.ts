@@ -239,6 +239,14 @@ export function charactersForEra(era: { from: number; to: number }, a3: string |
   return charactersForRange(era.from, era.to, a3);
 }
 
+/** Postavy napříč VŠEMI zeměmi, jejichž floruit se překrývá s [from, to] — pro přehled bez filtru země. */
+export function charactersForRangeAll(from: number, to: number): Character[] {
+  return Object.values(BY_COUNTRY)
+    .flat()
+    .filter((c) => c.activeFrom <= to && c.activeTo >= from)
+    .sort((a, b) => a.activeFrom - b.activeFrom);
+}
+
 /** Panovníci, jejichž vláda se překrývá s rozsahem let [from, to] — „parta té doby" na ose. */
 export function rulersForRange(from: number, to: number, a3: string | null | undefined): Character[] {
   return charactersForRange(from, to, a3).filter((c) => c.category === "ruler");

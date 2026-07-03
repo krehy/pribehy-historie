@@ -6,7 +6,7 @@ import type { Story } from "@/data/stories";
 import { formatYear } from "@/lib/history";
 import { eraForYear, type Era } from "@/data/eras";
 import {
-  rulerBySlug, charactersForRange, figureImage, reignLabel, lifespanLabel,
+  rulerBySlug, charactersForRange, charactersForRangeAll, figureImage, reignLabel, lifespanLabel,
   CATEGORY_LABEL, type Ruler, type Character,
 } from "@/data/rulers";
 import { ChromaImage } from "@/components/story/ChromaImage";
@@ -1026,9 +1026,14 @@ export function TimelineGrid({
   const eraList = useMemo(() => eras ?? [], [eras]);
   // Obnova z návratu (článek z přehledu) — počáteční epocha i filtr postavy rovnou z restore.
   // (Init stavu je StrictMode-safe; efekt by druhé spuštění přebilo seedem.)
-  const [activeEra, setActiveEra] = useState<Era | null>(
-    () => (restore?.eraName ? (eras ?? []).find((e) => e.name === restore.eraName) ?? null : null)
-  );
+  const [activeEra, setActiveEra] = useState<Era | null>(() => {
+    const list = eras ?? [];
+    if (restore?.eraName) return list.find((e) => e.name === restore.eraName) ?? null;
+    // Přehled otevřený hned od mountu (samostatná stránka) → předvyber první epochu
+    // s příběhy, ať pás zón sedí na obsahu (na mapě to řeší open-transition + seed).
+    if (open) return list.find((e) => storiesForEra(stories, e).length) ?? list[0] ?? null;
+    return null;
+  });
   const [hoverChar, setHoverChar] = useState<Character | null>(null);
   const [selectedChar, setSelectedChar] = useState<Character | null>(
     () => (restore?.charSlug ? rulerBySlug(restore.charSlug) ?? null : null)
@@ -1061,8 +1066,14 @@ export function TimelineGrid({
   }, [eraList, stories, activeEra]);
 
   // Všechny postavy epochy (panovníci, vědci, umělci, vynálezci…), ne jen panovníci.
+  // Bez filtru země (přehled „Všechny příběhy") bereme osobnosti napříč všemi zeměmi.
   const epochChars = useMemo(
-    () => (activeEra ? charactersForRange(activeEra.from, activeEra.to, countryCode) : []),
+    () =>
+      activeEra
+        ? countryCode
+          ? charactersForRange(activeEra.from, activeEra.to, countryCode)
+          : charactersForRangeAll(activeEra.from, activeEra.to)
+        : [],
     [activeEra, countryCode]
   );
   const epochStories = useMemo(
