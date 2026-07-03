@@ -187,7 +187,8 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
       const idx = stories.findIndex((s) => s.slug === ret.storySlug);
       x.set(vwRef.current / 2 - (idx >= 0 ? layout.centers[idx] ?? 0 : 0));
     } else {
-      setMode(initialMode ?? "osa"); // samostatná stránka „Všechny příběhy" startuje v přehledu
+      // Mód (osa/přehled) NEresetujeme — při přepnutí filtru země zůstáváme ve stejném
+      // foldu. Výchozí mód řeší init při mountu (initialMode / návrat z článku).
       x.set(vwRef.current / 2); // → change event → active = 0 (centers[0] = 0)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -583,6 +584,7 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
         style={{ pointerEvents: mode === "grid" ? "auto" : "none" }}
       >
         <TimelineGrid
+          key={(countryCode ?? stories[0]?.countryCode ?? "") || "all"}
           stories={stories}
           eras={eras}
           countryCode={countryCode ?? stories[0]?.countryCode ?? ""}
