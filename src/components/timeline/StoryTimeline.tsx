@@ -936,19 +936,24 @@ function TimelineGrid({
   // Re-mount klíč EraSlideru — mění se při každém otevření přehledu, aby se pás zón
   // okamžitě přepozicoval na předvybranou epochu (bez animační smyčky přes goTo).
   const [openSeq, setOpenSeq] = useState(0);
-  const prevOpen = useRef(open);
 
-  // Výchozí epocha = první s příběhy. Při KAŽDÉM otevření přehledu se ale předvybere
-  // epocha aktivní na horní ose (seedEraName) → časová synchronizace osa ↔ přehled.
+  // PŘI KAŽDÉM OTEVŘENÍ přehledu předvyber epochu aktivní na horní ose (seedEraName)
+  // → časová synchronizace osa ↔ přehled. Efekt závisí jen na `open`, takže spolehlivě
+  // reaguje na false→true přechod; seedEraName/eraList/stories čte aktuální ze závěru.
   useEffect(() => {
-    const justOpened = open && !prevOpen.current;
-    prevOpen.current = open;
-    if (eraList.length === 0) return;
-    if (activeEra && !justOpened) return; // neprepisuj ruční volbu v přehledu
+    if (!open || eraList.length === 0) return;
     const seed = seedEraName ? eraList.find((e) => e.name === seedEraName) : undefined;
-    setActiveEra(seed ?? eraList.find((e) => storiesForEra(stories, e).length) ?? eraList[0] ?? null);
-    if (justOpened) setOpenSeq((s) => s + 1);
-  }, [open, seedEraName, eraList, stories, activeEra]);
+    const target = seed ?? eraList.find((e) => storiesForEra(stories, e).length) ?? eraList[0] ?? null;
+    setActiveEra(target);
+    setOpenSeq((s) => s + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Úvodní default (dokud se přehled poprvé neotevře), ať obsah není prázdný.
+  useEffect(() => {
+    if (activeEra || eraList.length === 0) return;
+    setActiveEra(eraList.find((e) => storiesForEra(stories, e).length) ?? eraList[0] ?? null);
+  }, [eraList, stories, activeEra]);
 
   const epochRulers = useMemo(
     () => (activeEra ? rulersForRange(activeEra.from, activeEra.to, countryCode) : []),
