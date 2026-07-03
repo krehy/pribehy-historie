@@ -78,7 +78,7 @@ export function Footer() {
                     <h5 className="font-display text-sm tracking-wide text-ink">Objevovat</h5>
                     <ul className="mt-3 space-y-2 text-sm text-ink-soft">
                       <li><Link className="hover:text-sun-deep" to="/" onClick={close}>Mapa světa</Link></li>
-                      <li><Link className="hover:text-sun-deep" to="/" onClick={close}>Časová osa</Link></li>
+                      <li><Link className="hover:text-sun-deep" to="/historie" onClick={close}>Historie světa</Link></li>
                       <li><Link className="hover:text-sun-deep" to="/" onClick={close}>Všechny příběhy</Link></li>
                     </ul>
                   </div>
