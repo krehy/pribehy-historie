@@ -6,11 +6,12 @@ import { Hero } from "@/components/hero/Hero";
 import { WorldMap } from "@/components/map/WorldMap";
 import { StoryTimeline } from "@/components/timeline/StoryTimeline";
 import { HistoryScroll } from "@/components/history/HistoryScroll";
-import { storiesForCountry, storiesForRegion } from "@/lib/history";
+import { storiesForCountry, storiesForRegion, PUBLISHED_STORIES } from "@/lib/history";
+import { CountryCascadeSelect } from "@/components/stories/CountryCascadeSelect";
 import { countryName } from "@/data/countries";
 import { continentName, continentOfA3, type ContinentId } from "@/data/continents";
 import { hasRegions, regionName } from "@/data/regions";
-import { erasForCountry } from "@/data/eras";
+import { erasForCountry, WORLD_ERAS } from "@/data/eras";
 import type { Story } from "@/data/stories";
 
 type Phase = "loading" | "hero" | "map" | "history";
@@ -28,6 +29,9 @@ const NAV_KEY = "ph:map-nav";
 // Jednorázový příznak „vracím se zpět" — nastaví ho tlačítko Zpět v článku/profilu.
 // Bez něj Home pozici NEobnovuje (čerstvá návštěva „/" → hero, ne rovnou mapa/osa).
 const RESTORE_KEY = "ph:nav-restore";
+// Jednorázový příznak „Všechny příběhy" — Home naskočí do mapy s osou/přehledem přes
+// všechny země (nad mapou) + výběrem země. Nastaví ho odkaz „Všechny příběhy".
+const ALL_KEY = "ph:all-stories";
 interface SavedNav {
   continent: ContinentId | null;
   country: string | null;
@@ -72,6 +76,15 @@ export function enterMap(nav?: Partial<SavedNav>) {
   }
 }
 
+/** Zavolej před navigací na „/", ať Home otevře přehled/osu přes všechny země (nad mapou). */
+export function markAllStories() {
+  try {
+    sessionStorage.setItem(ALL_KEY, "1");
+  } catch {
+    /* sessionStorage nedostupný — ignoruj */
+  }
+}
+
 export default function Home() {
   // Pozici obnovíme jen když se uživatel vrací zpět (příznak RESTORE_KEY). Čtení
   // přes ref je bezpečné vůči StrictMode (dvojí render), příznak smažeme v efektu.
@@ -86,20 +99,43 @@ export default function Home() {
     restoreRef.current = flag ? readSavedNav() : null;
   }
   const saved = restoreRef.current;
-  useEffect(() => {
+
+  // „Všechny příběhy" (ALL_KEY) → Home naskočí do mapy s osou/přehledem přes všechny země.
+  const allFlagRef = useRef<boolean | undefined>(undefined);
+  if (allFlagRef.current === undefined) {
+    let f: string | null = null;
     try {
-      sessionStorage.removeItem(RESTORE_KEY);
+      f = sessionStorage.getItem(ALL_KEY);
     } catch {
       /* ignoruj */
     }
+    allFlagRef.current = !!f;
+  }
+  const startAll = allFlagRef.current;
+
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem(RESTORE_KEY);
+      sessionStorage.removeItem(ALL_KEY);
+    } catch {
+      /* ignoruj */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [phase, setPhase] = useState<Phase>(saved ? "map" : "loading");
+  const [phase, setPhase] = useState<Phase>(saved || startAll ? "map" : "loading");
   const [continent, setContinent] = useState<ContinentId | null>(saved?.continent ?? null);
   const [country, setCountry] = useState<string | null>(saved?.country ?? null);
   const [region, setRegion] = useState<string | null>(saved?.region ?? null);
-  const [timelineOpen, setTimelineOpen] = useState(saved?.timelineOpen ?? false);
-  const [timelineExpanded, setTimelineExpanded] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState((saved?.timelineOpen ?? false) || startAll);
+  // V „all" režimu je přehled rozbalený hned (nad mapou); overlay se v tom případě
+  // vykreslí rovnou na místě (initial=false), takže neřešíme finicky vstupní animaci.
+  const [timelineExpanded, setTimelineExpanded] = useState(startAll);
+  // „Všechny příběhy" režim: osa/přehled přes VŠECHNY země + filtr země (select).
+  const [allMode, setAllMode] = useState(startAll);
+  const [allFilter, setAllFilter] = useState<string | null>(null);
+  const allModeRef = useRef(allMode);
+  allModeRef.current = allMode;
   const [focus, setFocus] = useState<Focus>("timeline");
   const revealTimer = useRef<number>(0);
   const timelineOpenRef = useRef(false);
@@ -134,7 +170,15 @@ export default function Home() {
     }
   }, [phase, continent, country, region, timelineOpen]);
 
+  // Jakákoli interakce s mapou ukončí režim „Všechny příběhy" (uživatel teď vybírá zemi mapou).
+  const exitAllMode = useCallback(() => {
+    if (!allModeRef.current) return;
+    setAllMode(false);
+    setAllFilter(null);
+  }, []);
+
   const handleSelectContinent = useCallback((id: ContinentId | null) => {
+    exitAllMode();
     clearTimeout(revealTimer.current);
     setContinent(id);
     setCountry(null);
@@ -143,6 +187,7 @@ export default function Home() {
   }, []);
 
   const handleSelectCountry = useCallback((a3: string | null) => {
+    exitAllMode();
     clearTimeout(revealTimer.current);
     setCountry(a3);
     setRegion(null);
@@ -165,6 +210,7 @@ export default function Home() {
   }, []);
 
   const handleSelectRegion = useCallback((code: string | null) => {
+    exitAllMode();
     clearTimeout(revealTimer.current);
     setRegion(code);
     if (code) {
@@ -181,6 +227,12 @@ export default function Home() {
   const closeTimeline = useCallback(() => {
     clearTimeout(revealTimer.current);
     setTimelineOpen(false);
+    // Režim „Všechny příběhy" → zavření osy odkryje mapu světa (konec all režimu).
+    if (allModeRef.current) {
+      setAllMode(false);
+      setAllFilter(null);
+      return;
+    }
     setRegion((r) => (r ? null : r)); // v kraji → zpět na kraje
     setCountry((c) => (c && !hasRegions(c) ? null : c)); // ostatní → zpět na státy
   }, []);
@@ -188,12 +240,25 @@ export default function Home() {
   const inRegionMode = hasRegions(country);
 
   const timelineStories: Story[] = useMemo(() => {
+    // Všechny příběhy: bez filtru země → celý svět (seřazeno dle roku), jinak jen daná země.
+    if (allMode)
+      return allFilter
+        ? storiesForCountry(allFilter)
+        : [...PUBLISHED_STORIES].sort((a, b) => a.yearFrom - b.yearFrom);
     if (region) return storiesForRegion(region);
     if (country && !hasRegions(country)) return storiesForCountry(country);
     return [];
-  }, [country, region]);
+  }, [allMode, allFilter, country, region]);
 
-  const timelineLabel = region ? regionName(region) : country ? countryName(country) : "";
+  const timelineLabel = allMode
+    ? allFilter
+      ? countryName(allFilter)
+      : "Svět"
+    : region
+    ? regionName(region)
+    : country
+    ? countryName(country)
+    : "";
   const mapFocused = !timelineOpen || focus === "map";
 
   const chip = inRegionMode
@@ -294,8 +359,11 @@ export default function Home() {
           <motion.div
             key="timeline"
             className="absolute inset-x-0 bottom-0 z-40"
-            initial={{ y: "100%", height: "68vh" }}
-            animate={{ y: "0%", height: timelineExpanded ? "100%" : "68vh" }}
+            // „All" režim: overlay je přítomný hned → vykreslit rovnou na místě (bez vstupní
+            // animace). Jinak (příchod z mapy) plynulý výjezd zdola. Výška v % (ne vh) — stejná
+            // jednotka jako rozbalený stav, aby změna výšky (Zpět na osu) plynule animovala.
+            initial={startAll ? false : { y: "100%", height: "72%" }}
+            animate={{ y: "0%", height: timelineExpanded ? "100%" : "72%" }}
             exit={{ y: "100%" }}
             transition={{ duration: 0.5, ease: EASE }}
             onMouseEnter={() => canHover && setFocus("timeline")}
@@ -312,11 +380,17 @@ export default function Home() {
               transition={{ duration: 0.4, ease: EASE }}
             >
               <StoryTimeline
+                key={allMode ? `all-${allFilter ?? "world"}` : undefined}
                 countryName={timelineLabel}
                 stories={timelineStories}
                 onClose={closeTimeline}
-                eras={erasForCountry(country)}
+                eras={allMode ? (allFilter && erasForCountry(allFilter)) || WORLD_ERAS : erasForCountry(country)}
                 onExpandedChange={setTimelineExpanded}
+                initialMode={allMode ? "grid" : undefined}
+                countryCode={allMode ? allFilter ?? "" : undefined}
+                countrySelect={
+                  allMode ? <CountryCascadeSelect value={allFilter} onChange={setAllFilter} /> : undefined
+                }
               />
             </motion.div>
           </motion.div>
