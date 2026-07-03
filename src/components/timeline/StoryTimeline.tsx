@@ -1097,8 +1097,16 @@ function CharChip({
 }) {
   const image = figureImage(c);
   const cat = c.category === "ruler" ? c.title ?? "Panovník" : CATEGORY_LABEL[c.category];
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Při výběru odscrolluj kartu doleva na posuvníku, ať je rozšířená celá vidět.
+  useEffect(() => {
+    if (selected) ref.current?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+  }, [selected]);
+
   return (
     <div
+      ref={ref}
       role="button"
       tabIndex={0}
       onMouseEnter={onHover}
@@ -1107,7 +1115,7 @@ function CharChip({
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onToggle()}
       aria-label={`${c.name} — filtrovat příspěvky`}
       className={
-        "flex shrink-0 cursor-pointer items-stretch gap-2 rounded-2xl border-2 p-1.5 transition-colors " +
+        "flex shrink-0 scroll-ml-4 cursor-pointer items-stretch gap-2 rounded-2xl border-2 p-1.5 transition-colors " +
         (selected
           ? "border-sun bg-sun/15"
           : expanded
