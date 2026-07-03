@@ -508,6 +508,8 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
           stories={stories}
           eras={eras}
           countryCode={stories[0]?.countryCode ?? ""}
+          seedEraName={activeEra ?? focusEra}
+          open={mode === "grid"}
           filterRuler={filterRuler}
           onSelectRuler={(r) => setFilterRuler(r)}
           onClearFilter={() => setFilterRuler(null)}
@@ -907,6 +909,8 @@ function TimelineGrid({
   stories,
   eras,
   countryCode,
+  seedEraName,
+  open,
   filterRuler,
   onSelectRuler,
   onClearFilter,
@@ -916,6 +920,10 @@ function TimelineGrid({
   stories: Story[];
   eras?: Era[];
   countryCode: string;
+  /** Epocha aktivní na horní ose — předvybere se při otevření přehledu (časový sync). */
+  seedEraName?: string;
+  /** Přehled je otevřený (mode === "grid"). */
+  open: boolean;
   filterRuler: Ruler | null;
   onSelectRuler: (r: Ruler) => void;
   onClearFilter: () => void;
@@ -925,12 +933,22 @@ function TimelineGrid({
   const eraList = useMemo(() => eras ?? [], [eras]);
   const [activeEra, setActiveEra] = useState<Era | null>(null);
   const [hoverRuler, setHoverRuler] = useState<Ruler | null>(null);
+  // Re-mount klíč EraSlideru — mění se při každém otevření přehledu, aby se pás zón
+  // okamžitě přepozicoval na předvybranou epochu (bez animační smyčky přes goTo).
+  const [openSeq, setOpenSeq] = useState(0);
+  const prevOpen = useRef(open);
 
-  // výchozí aktivní epocha = první s příběhy (jinak první)
+  // Výchozí epocha = první s příběhy. Při KAŽDÉM otevření přehledu se ale předvybere
+  // epocha aktivní na horní ose (seedEraName) → časová synchronizace osa ↔ přehled.
   useEffect(() => {
-    if (activeEra || eraList.length === 0) return;
-    setActiveEra(eraList.find((e) => storiesForEra(stories, e).length) ?? eraList[0]);
-  }, [eraList, stories, activeEra]);
+    const justOpened = open && !prevOpen.current;
+    prevOpen.current = open;
+    if (eraList.length === 0) return;
+    if (activeEra && !justOpened) return; // neprepisuj ruční volbu v přehledu
+    const seed = seedEraName ? eraList.find((e) => e.name === seedEraName) : undefined;
+    setActiveEra(seed ?? eraList.find((e) => storiesForEra(stories, e).length) ?? eraList[0] ?? null);
+    if (justOpened) setOpenSeq((s) => s + 1);
+  }, [open, seedEraName, eraList, stories, activeEra]);
 
   const epochRulers = useMemo(
     () => (activeEra ? rulersForRange(activeEra.from, activeEra.to, countryCode) : []),
@@ -975,7 +993,7 @@ function TimelineGrid({
           <span className="font-display text-sm font-bold text-paper-light/80">{activeEra?.name}</span>
         </div>
         {/* PÁS ZÓN — tahový/slide filmstrip; náhled je zabudovaný (aktivní zóna se zvětší vlevo) */}
-        <EraSlider eras={eraList} stories={stories} activeName={activeEra?.name} onPick={setActiveEra} />
+        <EraSlider key={openSeq} eras={eraList} stories={stories} activeName={activeEra?.name} onPick={setActiveEra} />
       </div>
 
       {/* Obsah — postavy epochy (navázané) + karty příspěvků */}
