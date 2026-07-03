@@ -1186,7 +1186,7 @@ export function TimelineGrid({
                     key={c.slug}
                     c={c}
                     selected={selectedChar?.slug === c.slug}
-                    expanded={selectedChar?.slug === c.slug || hoverChar?.slug === c.slug}
+                    hovered={hoverChar?.slug === c.slug}
                     onHover={() => setHoverChar(c)}
                     onToggle={() => setSelectedChar((prev) => (prev?.slug === c.slug ? null : c))}
                     onDetail={() => onSelectRuler(c)}
@@ -1226,21 +1226,21 @@ export function TimelineGrid({
 }
 
 /**
- * Dlaždice postavy — avatar + jméno + roky. Klik = filtr příspěvků. Při hoveru NEBO
- * výběru se karta plynule rozšíří do šířky a vpravo odhalí detail (kategorie,
- * narození/úmrtí) + tlačítko „Zobrazit detail" → profil.
+ * Dlaždice postavy — avatar + jméno + roky. Klik = filtr příspěvků a plné rozbalení
+ * detailu (kategorie, narození/úmrtí, „Zobrazit detail"). Hover jen NAZNAČÍ (úzký
+ * proužek se šipkou), že po kliknutí se odhalí víc.
  */
 function CharChip({
   c,
   selected,
-  expanded,
+  hovered,
   onHover,
   onToggle,
   onDetail,
 }: {
   c: Character;
   selected: boolean;
-  expanded: boolean;
+  hovered: boolean;
   onHover: () => void;
   onToggle: () => void;
   onDetail: () => void;
@@ -1258,11 +1258,11 @@ function CharChip({
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onToggle()}
       aria-label={`${c.name} — filtrovat příspěvky`}
       className={
-        "flex shrink-0 cursor-pointer items-stretch gap-2 rounded-2xl border-2 p-1.5 transition-colors " +
+        "flex shrink-0 cursor-pointer items-stretch gap-2 rounded-2xl border-2 p-1.5 transition-all duration-200 " +
         (selected
           ? "border-sun bg-sun/15"
-          : expanded
-          ? "border-sun/60 bg-paper-light/[0.07]"
+          : hovered
+          ? "-translate-y-0.5 border-sun/60 bg-paper-light/[0.07]"
           : "border-paper-light/15 bg-paper-light/[0.04] hover:border-sun/60")
       }
     >
@@ -1279,16 +1279,22 @@ function CharChip({
         <div className="font-serif text-[10px] italic text-paper-light/50">{lifespanLabel(c)}</div>
       </div>
 
-      {/* Pravá část — rozbalí se plynule při hoveru / výběru */}
+      {/* Pravá část — hover jen naznačí (úzký proužek se šipkou), klik rozbalí plný detail. */}
       <AnimatePresence initial={false}>
-        {expanded && (
+        {(selected || hovered) && (
           <motion.div
             initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 184, opacity: 1 }}
+            animate={{ width: selected ? 184 : 22, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
             className="overflow-hidden"
           >
+            {!selected ? (
+              // Náznak — jen šipka „klikni pro detail"
+              <div className="flex h-full w-[22px] items-center justify-center">
+                <ChevronRight className="h-4 w-4 text-sun/70" />
+              </div>
+            ) : (
             <div className="flex h-full w-[176px] flex-col justify-center gap-1 pl-1 pr-1">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="rounded-full bg-sun/15 px-2 py-0.5 font-display text-[10px] font-bold uppercase tracking-wide text-sun">{cat}</span>
@@ -1311,6 +1317,7 @@ function CharChip({
                 <BookOpen className="h-3 w-3" /> Zobrazit detail
               </button>
             </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
