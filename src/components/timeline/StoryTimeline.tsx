@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion, useTransform, type MotionValue } from "framer-motion";
 import { BookOpen, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Play } from "lucide-react";
@@ -988,7 +988,7 @@ function EraSlider({
  * Pod headerem postavy epochy (hover = filtr karet, klik = profil) + karty příspěvků.
  * Klik na panovníka → CharacterProfileView.
  */
-function TimelineGrid({
+export function TimelineGrid({
   stories,
   eras,
   countryCode,
@@ -1000,6 +1000,8 @@ function TimelineGrid({
   onBackToOsa,
   onLaunch,
   restore,
+  countrySelect,
+  persistReturn,
 }: {
   stories: Story[];
   eras?: Era[];
@@ -1011,10 +1013,15 @@ function TimelineGrid({
   filterRuler: Ruler | null;
   onSelectRuler: (r: Ruler) => void;
   onClearFilter: () => void;
-  onBackToOsa: () => void;
+  /** Zpět na osu (jen když přehled žije v časové ose; na samostatné stránce chybí). */
+  onBackToOsa?: () => void;
   onLaunch: (slug: string) => void;
   /** Obnova při návratu z článku — epocha + slug filtrované postavy. */
   restore?: { eraName?: string; charSlug?: string };
+  /** Custom výběr země (světadíl → stát) místo tlačítka „Zpět na osu" — stránka „Všechny příběhy". */
+  countrySelect?: ReactNode;
+  /** Uložit návratový kontext osy při otevření příběhu (jen když přehled žije v ose). */
+  persistReturn?: boolean;
 }) {
   const eraList = useMemo(() => eras ?? [], [eras]);
   // Obnova z návratu (článek z přehledu) — počáteční epocha i filtr postavy rovnou z restore.
@@ -1075,7 +1082,8 @@ function TimelineGrid({
 
   // Otevření příběhu Z PŘEHLEDU → ulož návrat (epocha + filtr), ať se sem „Zpět" vrátí.
   const launchWithReturn = (slug: string) => {
-    saveReturn({ from: "grid", storySlug: slug, eraName: activeEra?.name, charSlug: selectedChar?.slug });
+    if (persistReturn !== false)
+      saveReturn({ from: "grid", storySlug: slug, eraName: activeEra?.name, charSlug: selectedChar?.slug });
     onLaunch(slug);
   };
 
@@ -1103,16 +1111,23 @@ function TimelineGrid({
       {/* Header — širokoúhlý preview aktivní epochy + PÁS ZÓN (sdílený scrubber/filtr) */}
       <div className={"sticky top-0 z-30 border-b border-paper-light/10 bg-[#17140e]/95 px-5 backdrop-blur transition-[padding] duration-300 md:px-8 " + (selectedChar ? "py-2" : "py-4")}>
         <div className={"flex items-center justify-between gap-3 " + (selectedChar ? "mb-1.5" : "mb-3")}>
-          <button
-            onClick={onBackToOsa}
-            className="inline-flex items-center gap-1.5 rounded-full border border-paper-light/25 bg-black/30 px-4 py-2 font-display text-sm font-bold text-paper-light transition-colors hover:bg-black/55"
-          >
-            <ChevronUp className="h-4 w-4" /> Zpět na osu
-          </button>
+          {onBackToOsa ? (
+            <button
+              onClick={onBackToOsa}
+              className="inline-flex items-center gap-1.5 rounded-full border border-paper-light/25 bg-black/30 px-4 py-2 font-display text-sm font-bold text-paper-light transition-colors hover:bg-black/55"
+            >
+              <ChevronUp className="h-4 w-4" /> Zpět na osu
+            </button>
+          ) : (
+            countrySelect ?? <span />
+          )}
           <span className="font-display text-sm font-bold text-paper-light/80">{activeEra?.name}</span>
         </div>
-        {/* PÁS ZÓN — při vybrané postavě se smrští do kompaktního pásu (víc místa na filtr). */}
-        <EraSlider key={openSeq} eras={eraList} stories={stories} activeName={activeEra?.name} compact={!!selectedChar} onPick={pickEra} />
+        {/* PÁS ZÓN — při vybrané postavě se smrští do kompaktního pásu (víc místa na filtr).
+            Bez období (víc zemí / stát bez periodizace) se pás vůbec nezobrazí. */}
+        {eraList.length > 0 && (
+          <EraSlider key={openSeq} eras={eraList} stories={stories} activeName={activeEra?.name} compact={!!selectedChar} onPick={pickEra} />
+        )}
       </div>
 
       {/* Obsah — postavy epochy (navázané) + karty příspěvků */}

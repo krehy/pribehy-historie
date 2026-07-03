@@ -10,7 +10,7 @@ const ROLE_LABEL: Record<Role, string> = { reader: "čtenář", author: "autor",
 const NAV = [
   { to: "/", label: "Mapa" },
   { to: "/historie", label: "Historie světa" },
-  { to: "/", label: "Všechny příběhy" },
+  { to: "/pribehy", label: "Všechny příběhy" },
   { to: "/o-projektu", label: "O projektu" },
 ];
 
@@ -147,6 +147,7 @@ export function Header() {
               const active =
                 (n.to === "/o-projektu" && pathname === "/o-projektu") ||
                 (n.to === "/historie" && pathname === "/historie") ||
+                (n.to === "/pribehy" && pathname === "/pribehy") ||
                 (n.label === "Mapa" && pathname === "/");
               return (
                 <Link

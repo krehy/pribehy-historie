@@ -79,7 +79,7 @@ export function Footer() {
                     <ul className="mt-3 space-y-2 text-sm text-ink-soft">
                       <li><Link className="hover:text-sun-deep" to="/" onClick={close}>Mapa světa</Link></li>
                       <li><Link className="hover:text-sun-deep" to="/historie" onClick={close}>Historie světa</Link></li>
-                      <li><Link className="hover:text-sun-deep" to="/" onClick={close}>Všechny příběhy</Link></li>
+                      <li><Link className="hover:text-sun-deep" to="/pribehy" onClick={close}>Všechny příběhy</Link></li>
                     </ul>
                   </div>
                   <div>
