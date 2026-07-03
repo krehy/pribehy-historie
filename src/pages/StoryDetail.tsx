@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { CompassRose } from "@/components/map/CompassRose";
 import { StoryExperience } from "@/components/story/StoryExperience";
 import { assetUrl } from "@/lib/assetUrl";
+import { markNavRestore } from "@/pages/Home";
 
 export default function StoryDetail() {
   const { slug } = useParams();
@@ -16,7 +17,11 @@ export default function StoryDetail() {
   const story = STORIES.find((s) => s.slug === slug);
 
   // Zpět tam, odkud jsem přišel (osa/přehled/studio…); bez historie fallback na mapu.
-  const goBack = () => (window.history.length > 1 ? navigate(-1) : navigate("/"));
+  // Příznak řekne Home, ať obnoví pozici mapy místo hera.
+  const goBack = () => {
+    markNavRestore();
+    return window.history.length > 1 ? navigate(-1) : navigate("/");
+  };
 
   // Velký (kinematický) příběh s beaty → celoobrazovkový zážitek.
   if (story?.beats && story.beats.length > 0) {

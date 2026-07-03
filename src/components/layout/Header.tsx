@@ -9,7 +9,7 @@ const ROLE_LABEL: Record<Role, string> = { reader: "čtenář", author: "autor",
 /** Položky navigace — stejná slovní zásoba jako patička. */
 const NAV = [
   { to: "/", label: "Mapa" },
-  { to: "/", label: "Časová osa" },
+  { to: "/historie", label: "Časová osa" },
   { to: "/", label: "Všechny příběhy" },
   { to: "/o-projektu", label: "O projektu" },
 ];
@@ -146,6 +146,7 @@ export function Header() {
             {NAV.map((n, i) => {
               const active =
                 (n.to === "/o-projektu" && pathname === "/o-projektu") ||
+                (n.to === "/historie" && pathname === "/historie") ||
                 (n.label === "Mapa" && pathname === "/");
               return (
                 <Link

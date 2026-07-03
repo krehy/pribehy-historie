@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { rulerBySlug } from "@/data/rulers";
 import { STORIES } from "@/data/stories";
 import { CharacterProfileView } from "@/components/character/CharacterProfileView";
+import { markNavRestore } from "@/pages/Home";
 
 /**
  * Samostatná profilová stránka postavy — /postava/:slug.
@@ -33,6 +34,7 @@ export default function CharacterProfile() {
       <div className="relative mx-auto max-w-3xl px-5 py-6 md:px-8">
         <Link
           to="/"
+          onClick={markNavRestore}
           className="inline-flex items-center gap-2 rounded-full border border-paper-light/20 bg-black/30 px-4 py-2 font-display text-sm font-bold text-paper-light backdrop-blur-sm transition-colors hover:bg-black/55"
         >
           <ArrowLeft className="h-4 w-4" /> Zpět na mapu

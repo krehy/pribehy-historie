@@ -2,6 +2,7 @@ import { Routes, Route, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
 import Home from "@/pages/Home";
+import History from "@/pages/History";
 import StoryDetail from "@/pages/StoryDetail";
 import CharacterProfile from "@/pages/CharacterProfile";
 import About from "@/pages/About";
@@ -27,6 +28,7 @@ export default function App() {
       <ScrollToTop />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/historie" element={<History />} />
         <Route path="/pribeh/:slug" element={<StoryDetail />} />
         <Route path="/postava/:slug" element={<CharacterProfile />} />
         <Route path="/o-projektu" element={<About />} />

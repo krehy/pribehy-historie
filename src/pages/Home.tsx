@@ -5,6 +5,7 @@ import { LoadingScreen } from "@/components/loading/LoadingScreen";
 import { Hero } from "@/components/hero/Hero";
 import { WorldMap } from "@/components/map/WorldMap";
 import { StoryTimeline } from "@/components/timeline/StoryTimeline";
+import { HistoryScroll } from "@/components/history/HistoryScroll";
 import { storiesForCountry, storiesForRegion } from "@/lib/history";
 import { countryName } from "@/data/countries";
 import { continentName, continentOfA3, type ContinentId } from "@/data/continents";
@@ -12,7 +13,7 @@ import { hasRegions, regionName } from "@/data/regions";
 import { erasForCountry } from "@/data/eras";
 import type { Story } from "@/data/stories";
 
-type Phase = "loading" | "hero" | "map";
+type Phase = "loading" | "hero" | "map" | "history";
 type Focus = "map" | "timeline";
 
 const EASE = [0.76, 0, 0.24, 1] as const;
@@ -24,6 +25,9 @@ const canHover =
 // Uložení/obnova navigace mapy (světadíl → stát → kraj → osa), aby návrat z článku
 // vrátil uživatele tam, kde byl, místo znovu-proklikávání celé mapy.
 const NAV_KEY = "ph:map-nav";
+// Jednorázový příznak „vracím se zpět" — nastaví ho tlačítko Zpět v článku/profilu.
+// Bez něj Home pozici NEobnovuje (čerstvá návštěva „/" → hero, ne rovnou mapa/osa).
+const RESTORE_KEY = "ph:nav-restore";
 interface SavedNav {
   continent: ContinentId | null;
   country: string | null;
@@ -38,8 +42,37 @@ function readSavedNav(): SavedNav | null {
   }
 }
 
+/** Zavolej těsně před návratem na „/", ať Home obnoví pozici mapy místo hera. */
+export function markNavRestore() {
+  try {
+    sessionStorage.setItem(RESTORE_KEY, "1");
+  } catch {
+    /* sessionStorage nedostupný — ignoruj */
+  }
+}
+
 export default function Home() {
-  const saved = useMemo(readSavedNav, []);
+  // Pozici obnovíme jen když se uživatel vrací zpět (příznak RESTORE_KEY). Čtení
+  // přes ref je bezpečné vůči StrictMode (dvojí render), příznak smažeme v efektu.
+  const restoreRef = useRef<SavedNav | null | undefined>(undefined);
+  if (restoreRef.current === undefined) {
+    let flag: string | null = null;
+    try {
+      flag = sessionStorage.getItem(RESTORE_KEY);
+    } catch {
+      /* ignoruj */
+    }
+    restoreRef.current = flag ? readSavedNav() : null;
+  }
+  const saved = restoreRef.current;
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem(RESTORE_KEY);
+    } catch {
+      /* ignoruj */
+    }
+  }, []);
+
   const [phase, setPhase] = useState<Phase>(saved ? "map" : "loading");
   const [continent, setContinent] = useState<ContinentId | null>(saved?.continent ?? null);
   const [country, setCountry] = useState<string | null>(saved?.country ?? null);
@@ -49,6 +82,7 @@ export default function Home() {
   const [focus, setFocus] = useState<Focus>("timeline");
   const revealTimer = useRef<number>(0);
   const timelineOpenRef = useRef(false);
+  const historyScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     timelineOpenRef.current = timelineOpen;
@@ -156,7 +190,7 @@ export default function Home() {
       </AnimatePresence>
 
       {/* ---------- VRSTVA MAPY ---------- */}
-      {phase !== "loading" && (
+      {phase !== "loading" && phase !== "history" && (
         <motion.div
           className="absolute inset-0"
           onMouseEnter={() => canHover && timelineOpen && setFocus("map")}
@@ -268,6 +302,28 @@ export default function Home() {
         )}
       </AnimatePresence>
 
+      {/* ---------- VRSTVA HISTORIE (dlouhý vertikální scroll) ---------- */}
+      {phase === "history" && (
+        <motion.div
+          key="history-layer"
+          ref={historyScrollRef}
+          className="absolute inset-0 z-30 overflow-y-auto overflow-x-hidden bg-paper"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, ease: EASE }}
+        >
+          {/* Návrat na úvod (hero) */}
+          <button
+            onClick={() => setPhase("hero")}
+            className="fixed left-4 top-20 z-40 inline-flex items-center gap-1 rounded-full border-2 border-ink/10 bg-paper-light/90 px-4 py-2 font-display text-sm font-bold text-ink shadow-parchment backdrop-blur-sm transition-colors hover:bg-country-hover"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Úvod
+          </button>
+          <HistoryScroll containerRef={historyScrollRef} />
+        </motion.div>
+      )}
+
       {/* ---------- HERO ---------- */}
       <AnimatePresence>
         {phase === "hero" && (
@@ -278,7 +334,7 @@ export default function Home() {
             exit={{ y: "-100%" }}
             transition={{ duration: 1, ease: EASE }}
           >
-            <Hero onEnter={() => setPhase("map")} />
+            <Hero onEnter={() => setPhase("map")} onHistory={() => setPhase("history")} />
           </motion.div>
         )}
       </AnimatePresence>

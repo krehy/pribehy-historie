@@ -1,17 +1,18 @@
 import { motion } from "framer-motion";
-import { Compass, ChevronDown } from "lucide-react";
+import { Compass, ChevronDown, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Arcs, Curl, Loop, Confetti, Sparkle } from "@/components/ui/Doodles";
 
 interface HeroProps {
   onEnter: () => void;
+  onHistory: () => void;
 }
 
 /**
  * Hero „loading" sekce s logem. Po interakci plynule odjede nahoru a odkryje
  * pergamenovou mapu světa. Styl: hravý, ve stylu instagramové grafiky.
  */
-export function Hero({ onEnter }: HeroProps) {
+export function Hero({ onEnter, onHistory }: HeroProps) {
   return (
     <motion.section
       className="relative flex h-full flex-col items-center justify-center overflow-hidden px-6 text-center"
@@ -67,11 +68,15 @@ export function Hero({ onEnter }: HeroProps) {
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.9, duration: 0.7 }}
-        className="mt-9"
+        className="mt-9 flex flex-col items-center gap-3 sm:flex-row"
       >
         <Button size="lg" onClick={onEnter} className="group">
           Prozkoumat mapu
           <ChevronDown className="h-5 w-5 transition-transform group-hover:translate-y-0.5" />
+        </Button>
+        <Button size="lg" variant="outline" onClick={onHistory} className="group">
+          <History className="h-5 w-5" />
+          Zobrazit historii
         </Button>
       </motion.div>
 
