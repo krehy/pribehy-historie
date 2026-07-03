@@ -397,7 +397,7 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
           onClick={onClose}
           className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full border-2 border-paper-light/25 bg-black/30 px-4 py-2 font-display text-sm font-bold text-paper-light backdrop-blur-sm transition-colors hover:bg-black/55"
         >
-          <ChevronLeft className="h-4 w-4" /> Zpět
+          <ChevronLeft className="h-4 w-4" /> Mapa
         </button>
         <span className="rounded-full bg-black/30 px-4 py-2 font-display text-sm font-bold text-paper-light/90 backdrop-blur-sm">
           {countryName} · časová osa
@@ -1142,7 +1142,7 @@ export function TimelineGrid({
                 onClick={onBackToOsa}
                 className="inline-flex items-center gap-1.5 rounded-full border border-paper-light/25 bg-black/30 px-4 py-2 font-display text-sm font-bold text-paper-light transition-colors hover:bg-black/55"
               >
-                <ChevronUp className="h-4 w-4" /> Zpět na osu
+                <ChevronUp className="h-4 w-4" /> Časová osa
               </button>
             )}
             {countrySelect}
