@@ -977,10 +977,8 @@ function TimelineGrid({
     () => (activeEra ? storiesForEra(stories, activeEra) : stories),
     [activeEra, stories]
   );
-  // Klik na postavu = filtr příspěvků; hover jen rozšiřuje kartu.
+  // Klik na postavu = filtr příspěvků; karta se plynule rozšíří (hover i výběr).
   const shown = selectedChar ? storiesWithChar(stories, selectedChar) : epochStories;
-  // Detail panel drží hoverovanou postavu; bez hoveru zůstane pro aktivní (filtrovanou).
-  const detailChar = hoverChar ?? selectedChar;
 
   // Přepnutí epochy zruší filtr postavy.
   useEffect(() => {
@@ -1034,34 +1032,19 @@ function TimelineGrid({
                 klikni = filtruj příspěvky · najeď = detail
               </span>
             </div>
-            <div className="flex gap-2.5 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex items-start gap-2.5 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {epochChars.map((c) => (
                 <CharChip
                   key={c.slug}
                   c={c}
                   selected={selectedChar?.slug === c.slug}
-                  hovered={hoverChar?.slug === c.slug}
+                  expanded={selectedChar?.slug === c.slug || hoverChar?.slug === c.slug}
                   onHover={() => setHoverChar(c)}
                   onToggle={() => setSelectedChar((prev) => (prev?.slug === c.slug ? null : c))}
+                  onDetail={() => onSelectRuler(c)}
                 />
               ))}
             </div>
-
-            {/* Rozšířený detail hoverované (nebo aktivní/filtrované) postavy — mimo scroll, ať se neořízne. */}
-            <AnimatePresence initial={false}>
-              {detailChar && (
-                <motion.div
-                  key={detailChar.slug}
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.22 }}
-                  className="overflow-hidden"
-                >
-                  <CharDetail c={detailChar} onDetail={() => onSelectRuler(detailChar)} />
-                </motion.div>
-              )}
-            </AnimatePresence>
           </section>
         )}
 
@@ -1092,83 +1075,94 @@ function TimelineGrid({
   );
 }
 
-/** Kompaktní dlaždice postavy — avatar + jméno + roky. Klik = filtr, hover = detail. */
+/**
+ * Dlaždice postavy — avatar + jméno + roky. Klik = filtr příspěvků. Při hoveru NEBO
+ * výběru se karta plynule rozšíří do šířky a vpravo odhalí detail (kategorie,
+ * narození/úmrtí) + tlačítko „Zobrazit detail" → profil.
+ */
 function CharChip({
   c,
   selected,
-  hovered,
+  expanded,
   onHover,
   onToggle,
+  onDetail,
 }: {
   c: Character;
   selected: boolean;
-  hovered: boolean;
+  expanded: boolean;
   onHover: () => void;
   onToggle: () => void;
+  onDetail: () => void;
 }) {
   const image = figureImage(c);
+  const cat = c.category === "ruler" ? c.title ?? "Panovník" : CATEGORY_LABEL[c.category];
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onMouseEnter={onHover}
       onFocus={onHover}
       onClick={onToggle}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onToggle()}
       aria-label={`${c.name} — filtrovat příspěvky`}
       className={
-        "flex w-[92px] shrink-0 flex-col items-center gap-1 rounded-2xl border-2 px-1.5 py-2 transition-colors " +
+        "flex shrink-0 cursor-pointer items-stretch gap-2 rounded-2xl border-2 p-1.5 transition-colors " +
         (selected
           ? "border-sun bg-sun/15"
-          : hovered
+          : expanded
           ? "border-sun/60 bg-paper-light/[0.07]"
           : "border-paper-light/15 bg-paper-light/[0.04] hover:border-sun/60")
       }
     >
-      <div className="relative h-16 w-16 overflow-hidden rounded-xl bg-[radial-gradient(closest-side,#33291a,#17140e)]">
-        {image.chroma ? (
-          <ChromaImage src={src(image.src)!} alt={c.name} className="absolute left-1/2 top-1 h-[260%] w-auto max-w-none -translate-x-1/2 object-contain" />
-        ) : (
-          <img src={src(image.src)!} alt={c.name} className="h-full w-full object-cover object-top" />
-        )}
+      {/* Levá část — avatar + jméno + roky (vždy) */}
+      <div className="flex w-[72px] shrink-0 flex-col items-center gap-1">
+        <div className="relative h-16 w-16 overflow-hidden rounded-xl bg-[radial-gradient(closest-side,#33291a,#17140e)]">
+          {image.chroma ? (
+            <ChromaImage src={src(image.src)!} alt={c.name} className="absolute left-1/2 top-1 h-[260%] w-auto max-w-none -translate-x-1/2 object-contain" />
+          ) : (
+            <img src={src(image.src)!} alt={c.name} className="h-full w-full object-cover object-top" />
+          )}
+        </div>
+        <div className="w-full truncate text-center font-display text-[11px] font-bold text-paper-light">{c.name}</div>
+        <div className="font-serif text-[10px] italic text-paper-light/50">{lifespanLabel(c)}</div>
       </div>
-      <div className="w-full truncate text-center font-display text-[11px] font-bold text-paper-light">{c.name}</div>
-      <div className="font-serif text-[10px] italic text-paper-light/50">{lifespanLabel(c)}</div>
-    </button>
-  );
-}
 
-/** Rozšířený detail postavy pod řádkem — kategorie, narození/úmrtí, „Zobrazit detail". */
-function CharDetail({ c, onDetail }: { c: Character; onDetail: () => void }) {
-  const image = figureImage(c);
-  const cat = c.category === "ruler" ? c.title ?? "Panovník" : CATEGORY_LABEL[c.category];
-  return (
-    <div className="mt-2 flex items-center gap-4 rounded-2xl border border-sun/30 bg-paper-light/[0.05] p-3">
-      <div className="relative h-20 w-20 flex-none overflow-hidden rounded-xl bg-[radial-gradient(closest-side,#33291a,#17140e)]">
-        {image.chroma ? (
-          <ChromaImage src={src(image.src)!} alt={c.name} className="absolute left-1/2 top-1 h-[260%] w-auto max-w-none -translate-x-1/2 object-contain" />
-        ) : (
-          <img src={src(image.src)!} alt={c.name} className="h-full w-full object-cover object-top" />
+      {/* Pravá část — rozbalí se plynule při hoveru / výběru */}
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 184, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="flex h-full w-[176px] flex-col justify-center gap-1 pl-1 pr-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="rounded-full bg-sun/15 px-2 py-0.5 font-display text-[10px] font-bold uppercase tracking-wide text-sun">{cat}</span>
+                {!c.real && <span className="rounded-full bg-rose-500/15 px-2 py-0.5 font-display text-[10px] font-bold uppercase text-rose-300">fikce</span>}
+              </div>
+              <div className="font-serif text-[11px] text-paper-light/75">
+                {c.bornYear && <span>* {c.bornDate ?? c.bornYear}</span>}
+                {c.diedYear && <span>{c.bornYear ? " · " : ""}† {c.diedDate ?? c.diedYear}</span>}
+                {!c.bornYear && !c.diedYear && <span>{lifespanLabel(c)}</span>}
+                {c.category === "ruler" && <div className="text-paper-light/50">vláda {reignLabel(c)}</div>}
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDetail();
+                }}
+                className="mt-0.5 inline-flex w-max items-center gap-1 rounded-full bg-sun px-2.5 py-1 font-display text-[11px] font-bold text-ink transition-transform hover:-translate-y-0.5"
+              >
+                <BookOpen className="h-3 w-3" /> Zobrazit detail
+              </button>
+            </div>
+          </motion.div>
         )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-sun/15 px-2 py-0.5 font-display text-[10px] font-bold uppercase tracking-wide text-sun">{cat}</span>
-          {!c.real && <span className="rounded-full bg-rose-500/15 px-2 py-0.5 font-display text-[10px] font-bold uppercase text-rose-300">fikce</span>}
-          <span className="font-display text-base font-extrabold text-paper-light">{c.name}</span>
-        </div>
-        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 font-serif text-xs text-paper-light/70">
-          {c.bornYear && <span>* {c.bornDate ?? c.bornYear}{c.birthPlace ? `, ${c.birthPlace}` : ""}</span>}
-          {c.diedYear && <span>† {c.diedDate ?? c.diedYear}{c.deathPlace ? `, ${c.deathPlace}` : ""}</span>}
-          {!c.bornYear && !c.diedYear && <span>{lifespanLabel(c)}</span>}
-          {c.category === "ruler" && <span className="text-paper-light/50">vláda {reignLabel(c)}</span>}
-        </div>
-        {c.bio && <p className="mt-1 line-clamp-2 font-serif text-xs italic text-paper-light/55">{c.bio}</p>}
-      </div>
-      <button
-        onClick={onDetail}
-        className="inline-flex flex-none items-center gap-1.5 rounded-full bg-sun px-4 py-2 font-display text-xs font-bold text-ink transition-transform hover:-translate-y-0.5"
-      >
-        <BookOpen className="h-3.5 w-3.5" /> Zobrazit detail
-      </button>
+      </AnimatePresence>
     </div>
   );
 }
