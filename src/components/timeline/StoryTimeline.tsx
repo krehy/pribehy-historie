@@ -1037,9 +1037,6 @@ function TimelineGrid({
           <section className="mb-6" onMouseLeave={() => setHoverChar(null)}>
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
               <h2 className="font-display text-lg font-extrabold">Osobnosti{activeEra ? ` · ${activeEra.name}` : ""}</h2>
-              <span className="font-serif text-xs italic text-paper-light/50">
-                klikni = filtruj příspěvky · najeď = detail
-              </span>
             </div>
             <div className="flex items-start gap-2.5 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {epochChars.map((c) => (
