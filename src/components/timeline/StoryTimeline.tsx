@@ -78,6 +78,14 @@ interface StoryTimelineProps {
   eras?: Era[];
   /** Oznámí rodiči, že se má panel roztáhnout na fullscreen (grid fold). */
   onExpandedChange?: (expanded: boolean) => void;
+  /** Výchozí fold (osa/přehled). Stránka „Všechny příběhy" startuje rovnou v přehledu. */
+  initialMode?: "osa" | "grid";
+  /** Přepis kódu země pro osobnosti (prázdné = napříč všemi zeměmi). Default z 1. příběhu. */
+  countryCode?: string;
+  /** Custom výběr země (světadíl → stát) v hlavičce přehledu — stránka „Všechny příběhy". */
+  countrySelect?: ReactNode;
+  /** Ukládat/číst návrat z článku. Na samostatné stránce vypnuto (nechceme obnovovat cizí stav). */
+  persistReturn?: boolean;
 }
 
 /**
@@ -85,13 +93,15 @@ interface StoryTimelineProps {
  * plynule se přelíná do pozadí (Big Picture / TV feel). Pod osou pás epoch (grouping).
  * Ovládání: swipe se setrvačností, kolečko/šipky (rychlost dle scrollu), hover, klik = spustit.
  */
-export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedChange }: StoryTimelineProps) {
+export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedChange, initialMode, countryCode, countrySelect, persistReturn }: StoryTimelineProps) {
   const navigate = useNavigate();
   const stripRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const modeLock = useRef(false);
-  const returnRef = useRef<TLReturn | null>(readReturn()); // návrat z článku — spotřebuje se na mountu
-  const [mode, setMode] = useState<"osa" | "grid">(returnRef.current?.from === "grid" ? "grid" : "osa");
+  // Návrat z článku — spotřebuje se na mountu. Na samostatné stránce (persistReturn=false) ho
+  // ignorujeme, ať se nepřenáší cizí stav osy; místo toho startujeme v initialMode.
+  const returnRef = useRef<TLReturn | null>(persistReturn === false ? null : readReturn());
+  const [mode, setMode] = useState<"osa" | "grid">(returnRef.current?.from === "grid" ? "grid" : initialMode ?? "osa");
   // Obnova filtrů přehledu (epocha + postava) při návratu z článku otevřeného z přehledu.
   const [gridRestore] = useState(() => {
     const r = returnRef.current;
@@ -177,7 +187,7 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
       const idx = stories.findIndex((s) => s.slug === ret.storySlug);
       x.set(vwRef.current / 2 - (idx >= 0 ? layout.centers[idx] ?? 0 : 0));
     } else {
-      setMode("osa");
+      setMode(initialMode ?? "osa"); // samostatná stránka „Všechny příběhy" startuje v přehledu
       x.set(vwRef.current / 2); // → change event → active = 0 (centers[0] = 0)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -566,14 +576,16 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
       <motion.div
         ref={gridRef}
         className="absolute inset-0 overflow-y-auto bg-[#17140e] text-paper-light"
-        animate={{ y: mode === "grid" ? "0%" : "100%" }}
+        // opacity garantuje skrytí i tam, kde procentní posun neplatí spolehlivě
+        // (přehled otevřený hned od mountu — samostatná stránka „Všechny příběhy").
+        animate={{ y: mode === "grid" ? "0%" : "100%", opacity: mode === "grid" ? 1 : 0 }}
         transition={{ duration: 0.5, ease: [0.76, 0, 0.24, 1] }}
         style={{ pointerEvents: mode === "grid" ? "auto" : "none" }}
       >
         <TimelineGrid
           stories={stories}
           eras={eras}
-          countryCode={stories[0]?.countryCode ?? ""}
+          countryCode={countryCode ?? stories[0]?.countryCode ?? ""}
           seedEraName={activeEra ?? focusEra}
           open={mode === "grid"}
           filterRuler={filterRuler}
@@ -582,6 +594,8 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
           onBackToOsa={toOsa}
           onLaunch={navigateStory}
           restore={gridRestore}
+          countrySelect={countrySelect}
+          persistReturn={persistReturn}
         />
       </motion.div>
     </div>
@@ -1122,16 +1136,17 @@ export function TimelineGrid({
       {/* Header — širokoúhlý preview aktivní epochy + PÁS ZÓN (sdílený scrubber/filtr) */}
       <div className={"sticky top-0 z-30 border-b border-paper-light/10 bg-[#17140e]/95 px-5 backdrop-blur transition-[padding] duration-300 md:px-8 " + (selectedChar ? "py-2" : "py-4")}>
         <div className={"flex items-center justify-between gap-3 " + (selectedChar ? "mb-1.5" : "mb-3")}>
-          {onBackToOsa ? (
-            <button
-              onClick={onBackToOsa}
-              className="inline-flex items-center gap-1.5 rounded-full border border-paper-light/25 bg-black/30 px-4 py-2 font-display text-sm font-bold text-paper-light transition-colors hover:bg-black/55"
-            >
-              <ChevronUp className="h-4 w-4" /> Zpět na osu
-            </button>
-          ) : (
-            countrySelect ?? <span />
-          )}
+          <div className="flex items-center gap-2">
+            {onBackToOsa && (
+              <button
+                onClick={onBackToOsa}
+                className="inline-flex items-center gap-1.5 rounded-full border border-paper-light/25 bg-black/30 px-4 py-2 font-display text-sm font-bold text-paper-light transition-colors hover:bg-black/55"
+              >
+                <ChevronUp className="h-4 w-4" /> Zpět na osu
+              </button>
+            )}
+            {countrySelect}
+          </div>
           <span className="font-display text-sm font-bold text-paper-light/80">{activeEra?.name}</span>
         </div>
         {/* PÁS ZÓN — při vybrané postavě se smrští do kompaktního pásu (víc místa na filtr).

@@ -51,6 +51,27 @@ export function markNavRestore() {
   }
 }
 
+/**
+ * Zavolej před navigací na „/", ať Home rovnou naskočí do MAPY (přeskočí hero) —
+ * volitelně zaostřené na světadíl/stát. Používá „Všechny příběhy" pro „Zpět na mapu".
+ */
+export function enterMap(nav?: Partial<SavedNav>) {
+  try {
+    sessionStorage.setItem(
+      NAV_KEY,
+      JSON.stringify({
+        continent: nav?.continent ?? null,
+        country: nav?.country ?? null,
+        region: nav?.region ?? null,
+        timelineOpen: nav?.timelineOpen ?? false,
+      })
+    );
+    sessionStorage.setItem(RESTORE_KEY, "1");
+  } catch {
+    /* sessionStorage nedostupný — ignoruj */
+  }
+}
+
 export default function Home() {
   // Pozici obnovíme jen když se uživatel vrací zpět (příznak RESTORE_KEY). Čtení
   // přes ref je bezpečné vůči StrictMode (dvojí render), příznak smažeme v efektu.
