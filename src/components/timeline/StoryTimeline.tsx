@@ -765,6 +765,7 @@ function EpochCard({
   i,
   w,
   active,
+  compact,
   onSelect,
 }: {
   era: Era;
@@ -772,10 +773,13 @@ function EpochCard({
   i: number;
   w: number;
   active: boolean;
+  /** Kompaktní pás — i aktivní epocha je plochý pruh (bez náhledu), když se filtruje postava. */
+  compact?: boolean;
   onSelect: () => void;
 }) {
   const GAP = 10;
-  const s0 = active ? storiesForEra(stories, era)[0] : null;
+  const showPreview = active && !compact;
+  const s0 = showPreview ? storiesForEra(stories, era)[0] : null;
   const m = s0 ? bgMedia(s0) : null;
 
   return (
@@ -783,11 +787,13 @@ function EpochCard({
       <div
         className={
           "relative w-full overflow-hidden rounded-lg border-2 transition-all duration-300 " +
-          (active ? "h-24 border-sun shadow-[0_0_18px_rgba(244,196,48,.25)]" : "h-9 border-white/10")
+          (showPreview
+            ? "h-24 border-sun shadow-[0_0_18px_rgba(244,196,48,.25)]"
+            : "h-9 " + (active ? "border-sun/70" : "border-white/10"))
         }
-        style={active ? undefined : { background: era.tint }}
+        style={showPreview ? undefined : { background: era.tint }}
       >
-        {active && (
+        {showPreview && (
           <>
             {m?.video ? (
               <video
@@ -807,7 +813,7 @@ function EpochCard({
           </>
         )}
 
-        {active ? (
+        {showPreview ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 p-2">
             <div className="truncate font-display text-xs font-bold uppercase leading-tight tracking-wide text-sun">
               {era.name}
@@ -841,11 +847,14 @@ function EraSlider({
   eras,
   stories,
   activeName,
+  compact,
   onPick,
 }: {
   eras: Era[];
   stories: Story[];
   activeName?: string;
+  /** Kompaktní pás (bez zvětšené aktivní epochy) — když je vybraná postava/filtr. */
+  compact?: boolean;
   onPick: (e: Era) => void;
 }) {
   const moved = useRef(false);
@@ -887,7 +896,7 @@ function EraSlider({
   };
 
   return (
-    <div className="relative h-28 w-full overflow-hidden" onWheel={onWheel}>
+    <div className={"relative w-full overflow-hidden transition-[height] duration-300 " + (compact ? "h-14" : "h-28")} onWheel={onWheel}>
       {/* čára přítomnosti — vlevo */}
       <div className="pointer-events-none absolute top-0 z-20 h-full w-px bg-sun/50" style={{ left: ERA_P }} />
       <div className="pointer-events-none absolute top-0 z-20 -translate-x-1/2" style={{ left: ERA_P }}>
@@ -904,7 +913,7 @@ function EraSlider({
         onDragStart={() => (moved.current = true)}
       >
         {eras.map((e, i) => (
-          <EpochCard key={e.name} era={e} stories={stories} i={i} w={ERA_W} active={i === idx} onSelect={() => pick(i)} />
+          <EpochCard key={e.name} era={e} stories={stories} i={i} w={ERA_W} active={i === idx} compact={compact} onSelect={() => pick(i)} />
         ))}
       </motion.div>
     </div>
@@ -1008,8 +1017,8 @@ function TimelineGrid({
   return (
     <div className="relative min-h-full pb-16">
       {/* Header — širokoúhlý preview aktivní epochy + PÁS ZÓN (sdílený scrubber/filtr) */}
-      <div className="sticky top-0 z-30 border-b border-paper-light/10 bg-[#17140e]/95 px-5 py-4 backdrop-blur md:px-8">
-        <div className="mb-3 flex items-center justify-between gap-3">
+      <div className={"sticky top-0 z-30 border-b border-paper-light/10 bg-[#17140e]/95 px-5 backdrop-blur transition-[padding] duration-300 md:px-8 " + (selectedChar ? "py-2" : "py-4")}>
+        <div className={"flex items-center justify-between gap-3 " + (selectedChar ? "mb-1.5" : "mb-3")}>
           <button
             onClick={onBackToOsa}
             className="inline-flex items-center gap-1.5 rounded-full border border-paper-light/25 bg-black/30 px-4 py-2 font-display text-sm font-bold text-paper-light transition-colors hover:bg-black/55"
@@ -1018,8 +1027,8 @@ function TimelineGrid({
           </button>
           <span className="font-display text-sm font-bold text-paper-light/80">{activeEra?.name}</span>
         </div>
-        {/* PÁS ZÓN — tahový/slide filmstrip; náhled je zabudovaný (aktivní zóna se zvětší vlevo) */}
-        <EraSlider key={openSeq} eras={eraList} stories={stories} activeName={activeEra?.name} onPick={setActiveEra} />
+        {/* PÁS ZÓN — při vybrané postavě se smrští do kompaktního pásu (víc místa na filtr). */}
+        <EraSlider key={openSeq} eras={eraList} stories={stories} activeName={activeEra?.name} compact={!!selectedChar} onPick={setActiveEra} />
       </div>
 
       {/* Obsah — postavy epochy (navázané) + karty příspěvků */}
