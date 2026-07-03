@@ -21,12 +21,30 @@ const canHover =
   typeof window !== "undefined" &&
   window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 
+// Uložení/obnova navigace mapy (světadíl → stát → kraj → osa), aby návrat z článku
+// vrátil uživatele tam, kde byl, místo znovu-proklikávání celé mapy.
+const NAV_KEY = "ph:map-nav";
+interface SavedNav {
+  continent: ContinentId | null;
+  country: string | null;
+  region: string | null;
+  timelineOpen: boolean;
+}
+function readSavedNav(): SavedNav | null {
+  try {
+    return JSON.parse(sessionStorage.getItem(NAV_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
 export default function Home() {
-  const [phase, setPhase] = useState<Phase>("loading");
-  const [continent, setContinent] = useState<ContinentId | null>(null);
-  const [country, setCountry] = useState<string | null>(null);
-  const [region, setRegion] = useState<string | null>(null);
-  const [timelineOpen, setTimelineOpen] = useState(false);
+  const saved = useMemo(readSavedNav, []);
+  const [phase, setPhase] = useState<Phase>(saved ? "map" : "loading");
+  const [continent, setContinent] = useState<ContinentId | null>(saved?.continent ?? null);
+  const [country, setCountry] = useState<string | null>(saved?.country ?? null);
+  const [region, setRegion] = useState<string | null>(saved?.region ?? null);
+  const [timelineOpen, setTimelineOpen] = useState(saved?.timelineOpen ?? false);
   const [timelineExpanded, setTimelineExpanded] = useState(false);
   const [focus, setFocus] = useState<Focus>("timeline");
   const revealTimer = useRef<number>(0);
@@ -42,6 +60,16 @@ export default function Home() {
   useEffect(() => setTimelineExpanded(false), [country, region]);
 
   useEffect(() => () => clearTimeout(revealTimer.current), []);
+
+  // Ulož navigaci mapy, ať návrat z článku (history back / „/") přistane tam, kde jsem byl.
+  useEffect(() => {
+    if (phase !== "map") return;
+    try {
+      sessionStorage.setItem(NAV_KEY, JSON.stringify({ continent, country, region, timelineOpen }));
+    } catch {
+      /* sessionStorage nedostupný — ignoruj */
+    }
+  }, [phase, continent, country, region, timelineOpen]);
 
   const handleSelectContinent = useCallback((id: ContinentId | null) => {
     clearTimeout(revealTimer.current);

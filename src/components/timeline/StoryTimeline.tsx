@@ -1184,7 +1184,7 @@ function GridCard({ story, onLaunch }: { story: Story; onLaunch: (slug: string) 
     >
       <div className="relative aspect-[4/3] overflow-hidden">
         {media.video ? (
-          <video className="h-full w-full object-cover" src={media.src} muted loop playsInline preload="metadata" />
+          <video className="h-full w-full object-cover" src={media.src} autoPlay muted loop playsInline preload="metadata" />
         ) : (
           <div
             className="h-full w-full bg-cover bg-center transition-transform duration-500 group-hover:scale-105"

@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, CalendarRange, MapPin } from "lucide-react";
 import { STORIES } from "@/data/stories";
@@ -12,7 +12,11 @@ import { assetUrl } from "@/lib/assetUrl";
 
 export default function StoryDetail() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const story = STORIES.find((s) => s.slug === slug);
+
+  // Zpět tam, odkud jsem přišel (osa/přehled/studio…); bez historie fallback na mapu.
+  const goBack = () => (window.history.length > 1 ? navigate(-1) : navigate("/"));
 
   // Velký (kinematický) příběh s beaty → celoobrazovkový zážitek.
   if (story?.beats && story.beats.length > 0) {
@@ -43,12 +47,12 @@ export default function StoryDetail() {
 
   return (
     <article className="mx-auto max-w-3xl px-4 py-12 md:px-6">
-      <Link
-        to="/"
+      <button
+        onClick={goBack}
         className="inline-flex items-center gap-1.5 font-display text-sm tracking-wide text-ink-soft transition-colors hover:text-sun-deep"
       >
-        <ArrowLeft className="h-4 w-4" /> Zpět na mapu
-      </Link>
+        <ArrowLeft className="h-4 w-4" /> Zpět
+      </button>
 
       <motion.header
         initial={{ opacity: 0, y: 16 }}
