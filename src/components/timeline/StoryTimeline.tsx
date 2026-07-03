@@ -55,9 +55,8 @@ const PX_PER_YEAR = 0.5;
 const MIN_SEG = 190;
 const MAX_SEG = 380;
 
-// EraSlider: konstantní šířka slotu zóny (→ nulové překrývání) a čára přítomnosti zleva.
+// EraSlider: konstantní šířka slotu zóny (→ nulové překrývání). Aktivní zóna se centruje na střed.
 const ERA_W = 184;
-const ERA_P = 72;
 
 /** Médium karty (náhled) — jiné než pozadí u vlajkových příběhů. */
 function cardMedia(s: Story): { src?: string; video: boolean } {
@@ -936,12 +935,17 @@ function EraSlider({
   onPick: (e: Era) => void;
 }) {
   const moved = useRef(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const cwRef = useRef(0);
+  const [cw, setCw] = useState(0);
   const startIdx = Math.max(0, eras.findIndex((e) => e.name === activeName));
-  const centerFor = useCallback((i: number) => ERA_P - i * ERA_W, []);
+  // Aktivní epocha se centruje na playhead UPROSTŘED pásu (stejně jako hlavní osa),
+  // ne vlevo. Střed karty i = střed kontejneru → x = cw/2 − w/2 − i·w.
+  const centerFor = useCallback((i: number) => cwRef.current / 2 - ERA_W / 2 - i * ERA_W, []);
 
   // Stejné snap-filmstrip jádro jako hlavní osa (uniformní rozteč slotů). wheelLock 240 ms.
   // Aktivní index odvozen z x → bez zpětného snapu → žádná smyčka. onActive syncuje rodiče.
-  const { x, activeIndex: idx, goTo, stepBy, dragTransition } = useSnapFilmstrip({
+  const { x, activeIndex: idx, goTo, stepBy, dragTransition, nearest } = useSnapFilmstrip({
     count: eras.length,
     centerFor,
     wheelLockMs: 240,
@@ -952,9 +956,20 @@ function EraSlider({
     },
   });
 
-  // Výchozí pozice (jednou).
+  // Změř šířku pásu a vycentruj aktivní epochu na střed (re-center i při resize).
   useLayoutEffect(() => {
-    x.set(ERA_P - startIdx * ERA_W);
+    const el = wrapRef.current;
+    if (!el) return;
+    const measure = () => {
+      const first = cwRef.current === 0;
+      cwRef.current = el.clientWidth;
+      setCw(el.clientWidth);
+      x.set(first ? centerFor(startIdx) : centerFor(nearest(x.get())));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -974,17 +989,17 @@ function EraSlider({
   };
 
   return (
-    <div className={"relative w-full overflow-hidden transition-[height] duration-300 " + (compact ? "h-14" : "h-28")} onWheel={onWheel}>
-      {/* čára přítomnosti — vlevo */}
-      <div className="pointer-events-none absolute top-0 z-20 h-full w-px bg-sun/50" style={{ left: ERA_P }} />
-      <div className="pointer-events-none absolute top-0 z-20 -translate-x-1/2" style={{ left: ERA_P }}>
+    <div ref={wrapRef} className={"relative w-full overflow-hidden transition-[height] duration-300 " + (compact ? "h-14" : "h-28")} onWheel={onWheel}>
+      {/* čára přítomnosti — uprostřed (playhead) */}
+      <div className="pointer-events-none absolute top-0 z-20 h-full w-px -translate-x-1/2 bg-sun/50" style={{ left: cw / 2 }} />
+      <div className="pointer-events-none absolute top-0 z-20 -translate-x-1/2" style={{ left: cw / 2 }}>
         <div className="h-0 w-0 border-x-[6px] border-t-[8px] border-x-transparent border-t-sun" />
       </div>
       <motion.div
         className="absolute inset-y-0 left-0 cursor-grab active:cursor-grabbing"
         style={{ x, width: eras.length * ERA_W }}
         drag="x"
-        dragConstraints={{ left: ERA_P - (eras.length - 1) * ERA_W, right: ERA_P }}
+        dragConstraints={{ left: centerFor(eras.length - 1), right: centerFor(0) }}
         dragElastic={0.06}
         dragTransition={dragTransition}
         onPointerDownCapture={() => (moved.current = false)}
@@ -1137,19 +1152,17 @@ export function TimelineGrid({
     <div className="relative min-h-full pb-6 md:pb-16">
       {/* Header — širokoúhlý preview aktivní epochy + PÁS ZÓN (sdílený scrubber/filtr) */}
       <div className={"sticky top-0 z-30 border-b border-paper-light/10 bg-[#17140e]/95 px-5 backdrop-blur transition-[padding] duration-300 md:px-8 " + (selectedChar ? "py-2" : "py-4")}>
-        <div className={"flex items-center justify-between gap-3 " + (selectedChar ? "mb-1.5" : "mb-3")}>
-          <div className="flex items-center gap-2">
-            {onBackToOsa && (
-              <button
-                onClick={onBackToOsa}
-                className="inline-flex items-center gap-1.5 rounded-full border border-paper-light/25 bg-black/30 px-4 py-2 font-display text-sm font-bold text-paper-light transition-colors hover:bg-black/55"
-              >
-                <ChevronUp className="h-4 w-4" /> Časová osa
-              </button>
-            )}
-            {countrySelect}
-          </div>
-          <span className="font-display text-sm font-bold text-paper-light/80">{activeEra?.name}</span>
+        {/* Tlačítko „Časová osa" drží vlevo v rohu; filtr země je vycentrovaný na střed. */}
+        <div className={"relative flex items-center justify-center gap-3 " + (selectedChar ? "mb-1.5" : "mb-3")}>
+          {onBackToOsa && (
+            <button
+              onClick={onBackToOsa}
+              className="absolute left-0 inline-flex items-center gap-1.5 rounded-full border border-paper-light/25 bg-black/30 px-4 py-2 font-display text-sm font-bold text-paper-light transition-colors hover:bg-black/55"
+            >
+              <ChevronUp className="h-4 w-4" /> Časová osa
+            </button>
+          )}
+          {countrySelect}
         </div>
         {/* PÁS ZÓN — při vybrané postavě se smrští do kompaktního pásu (víc místa na filtr).
             Bez období (víc zemí / stát bez periodizace) se pás vůbec nezobrazí. */}
@@ -1162,26 +1175,29 @@ export function TimelineGrid({
       <div className="mx-auto max-w-6xl px-5 py-3 md:px-8 md:py-6">
         {epochChars.length > 0 && (
           <section className="mb-3 md:mb-6" onMouseLeave={() => setHoverChar(null)}>
-            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <h2 className="font-display text-lg font-extrabold">Osobnosti{activeEra ? ` · ${activeEra.name}` : ""}</h2>
-            </div>
-            <div className="flex items-start gap-2.5 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {epochChars.map((c) => (
-                <CharChip
-                  key={c.slug}
-                  c={c}
-                  selected={selectedChar?.slug === c.slug}
-                  expanded={selectedChar?.slug === c.slug || hoverChar?.slug === c.slug}
-                  onHover={() => setHoverChar(c)}
-                  onToggle={() => setSelectedChar((prev) => (prev?.slug === c.slug ? null : c))}
-                  onDetail={() => onSelectRuler(c)}
-                />
-              ))}
+            <h2 className="mb-2 text-center font-display text-lg font-extrabold">
+              Osobnosti{activeEra ? ` · ${activeEra.name}` : ""}
+            </h2>
+            {/* w-max + mx-auto: při málu postav vycentruje, při přetečení normálně scrolluje. */}
+            <div className="overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="mx-auto flex w-max items-start gap-2.5">
+                {epochChars.map((c) => (
+                  <CharChip
+                    key={c.slug}
+                    c={c}
+                    selected={selectedChar?.slug === c.slug}
+                    expanded={selectedChar?.slug === c.slug || hoverChar?.slug === c.slug}
+                    onHover={() => setHoverChar(c)}
+                    onToggle={() => setSelectedChar((prev) => (prev?.slug === c.slug ? null : c))}
+                    onDetail={() => onSelectRuler(c)}
+                  />
+                ))}
+              </div>
             </div>
           </section>
         )}
 
-        <h2 className="mb-3 mt-3 flex flex-wrap items-baseline gap-x-2 font-display text-lg font-extrabold md:mt-6">
+        <h2 className="mb-3 mt-3 flex flex-wrap items-baseline justify-center gap-x-2 text-center font-display text-lg font-extrabold md:mt-6">
           {selectedChar ? `Příspěvky · ${selectedChar.name}` : `Příspěvky${activeEra ? ` · ${activeEra.name}` : ""}`}
           <span className="font-serif text-sm font-normal italic text-paper-light/50">· {shown.length}</span>
           {selectedChar && (

@@ -168,6 +168,27 @@ export default function Home() {
 
   useEffect(() => () => clearTimeout(revealTimer.current), []);
 
+  // Navmenu „Mapa" / logo přepínají Home i když už na „/" jsme (Link na stejnou cestu
+  // Home neremountuje). „Mapa" → rovnou mapa světa (přeskočí hero); logo → hero.
+  useEffect(() => {
+    const toMap = () => {
+      clearTimeout(revealTimer.current);
+      setContinent(null);
+      setCountry(null);
+      setRegion(null);
+      setTimelineOpen(false);
+      setAllMode(false);
+      setPhase("map");
+    };
+    const toHero = () => setPhase("hero");
+    window.addEventListener("ph:enter-map", toMap);
+    window.addEventListener("ph:enter-hero", toHero);
+    return () => {
+      window.removeEventListener("ph:enter-map", toMap);
+      window.removeEventListener("ph:enter-hero", toHero);
+    };
+  }, []);
+
   // Ulož navigaci mapy, ať návrat z článku (history back / „/") přistane tam, kde jsem byl.
   useEffect(() => {
     if (phase !== "map") return;

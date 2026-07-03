@@ -3,6 +3,17 @@ import { Link, useLocation } from "react-router-dom";
 import { Compass } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSession, type Role } from "@/context/session";
+import { enterMap } from "@/pages/Home";
+
+/** Přepnout Home rovnou na mapu světa (i když už na „/" jsme). */
+function goToMap() {
+  enterMap(); // pro čerstvý mount z jiné stránky
+  window.dispatchEvent(new Event("ph:enter-map")); // pro už běžící Home na „/"
+}
+/** Přepnout Home na hero (úvod) — přes logo. */
+function goToHero() {
+  window.dispatchEvent(new Event("ph:enter-hero"));
+}
 
 const ROLE_LABEL: Record<Role, string> = { reader: "čtenář", author: "autor", admin: "admin" };
 
@@ -82,7 +93,12 @@ export function Header() {
       {/* ── Header: edge-to-edge, logo úplně vlevo, akce vpravo ── */}
       <header className="sticky top-0 z-50 border-b-2 border-ink/5 bg-paper/85 backdrop-blur-sm">
         <div className="flex h-16 w-full items-center px-5 md:px-[clamp(20px,3vw,52px)]">
-          <Link to="/" className="group flex flex-none items-center" aria-label="Příběhy historie — domů">
+          <Link
+            to="/"
+            onClick={goToHero}
+            className="group flex flex-none items-center"
+            aria-label="Příběhy historie — domů"
+          >
             <BrandMark />
           </Link>
 
@@ -154,7 +170,10 @@ export function Header() {
                   key={`${n.label}-${i}`}
                   to={n.to}
                   className={cn(active && "active")}
-                  onClick={() => setOpen(false)}
+                  onClick={() => {
+                    if (n.label === "Mapa") goToMap(); // → rovnou mapa (ne hero)
+                    setOpen(false);
+                  }}
                 >
                   {n.label}
                 </Link>
@@ -183,7 +202,10 @@ export function Header() {
           <div className="ph-nav-foot">
             <Link
               to="/"
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                goToMap();
+                setOpen(false);
+              }}
               className="rounded-full bg-sun px-7 py-3 font-display text-base font-bold text-ink shadow-sticker transition-transform hover:-translate-y-0.5"
             >
               Prozkoumat mapu →
