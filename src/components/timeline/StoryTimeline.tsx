@@ -5,7 +5,10 @@ import { BookOpen, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Play } fro
 import type { Story } from "@/data/stories";
 import { formatYear } from "@/lib/history";
 import { eraForYear, type Era } from "@/data/eras";
-import { rulerBySlug, rulersForRange, figureImage, reignLabel, type Ruler } from "@/data/rulers";
+import {
+  rulerBySlug, charactersForRange, figureImage, reignLabel, lifespanLabel,
+  CATEGORY_LABEL, type Ruler, type Character,
+} from "@/data/rulers";
 import { ChromaImage } from "@/components/story/ChromaImage";
 import { CharacterProfileView } from "@/components/character/CharacterProfileView";
 import { assetUrl } from "@/lib/assetUrl";
@@ -72,8 +75,8 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
 
   // Rozložení: střed každého příběhu v px (proporčně dle roku, se zkrácením mezer).
   const layout = useMemo(() => {
-    const minSeg = isMobile ? 130 : MIN_SEG;
-    const maxSeg = isMobile ? 240 : MAX_SEG;
+    const minSeg = isMobile ? 190 : MIN_SEG;
+    const maxSeg = isMobile ? 300 : MAX_SEG;
     const centers: number[] = [];
     const gaps: { x: number; years: number }[] = [];
     stories.forEach((s, i) => {
@@ -192,7 +195,7 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
   // Pás epoch (grouping pod osou) — segment přes příběhy dané epochy.
   const eraSegs = useMemo(() => {
     if (!eras || stories.length === 0) return [];
-    const half = (isMobile ? 130 : MIN_SEG) / 2;
+    const half = (isMobile ? 190 : MIN_SEG) / 2;
     const out: { name: string; from: number; to: number; tint: string; left: number; width: number }[] = [];
     for (const era of eras) {
       const idxs = stories
@@ -275,6 +278,8 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
         )}
       </AnimatePresence>
       <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-t from-[#17140e] via-[#17140e]/55 to-[#17140e]/15" />
+      {/* Levý scrim — tmavší strana s textem (titulek/perex) kvůli čitelnosti na světlém pozadí. */}
+      <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-r from-[#17140e]/85 via-[#17140e]/40 to-transparent md:via-[#17140e]/30" />
       </div>
 
       {/* Parta = postavy z tohoto příběhu, vyklíčované, vpravo nad osou. Ukotvená
@@ -343,15 +348,15 @@ export function StoryTimeline({ countryName, stories, onClose, eras, onExpandedC
             transition={{ duration: 0.45, ease: "easeOut" }}
             className="pointer-events-none mx-auto max-w-7xl [&>*]:max-w-2xl"
           >
-            <div className="font-serif text-sm italic text-sun/85">
+            <div className="font-serif text-sm italic text-sun [text-shadow:_0_1px_8px_rgba(0,0,0,.8)]">
               {formatYear(focusStory.yearFrom)} · {countryName}
               {focusEra ? ` · ${focusEra}` : ""}
               {!focusStory.beats && <span className="text-paper-light/50"> · článek</span>}
             </div>
-            <h2 className="mt-1 font-display text-2xl font-extrabold leading-tight drop-shadow md:text-4xl">
+            <h2 className="mt-1 font-display text-2xl font-extrabold leading-tight [text-shadow:_0_1px_2px_rgba(0,0,0,.95),_0_3px_20px_rgba(0,0,0,.7)] md:text-4xl">
               {focusStory.title}
             </h2>
-            <p className="mt-1 line-clamp-2 max-w-xl font-sans text-sm text-paper-light/85 drop-shadow">
+            <p className="mt-1 line-clamp-2 max-w-xl font-sans text-sm text-paper-light [text-shadow:_0_1px_2px_rgba(0,0,0,.95),_0_2px_12px_rgba(0,0,0,.65)]">
               {focusStory.excerpt}
             </p>
             {focusStory.beats ? (
@@ -541,8 +546,10 @@ function StoryCard({
   onHover: (s: Story | null) => void;
   onCenter: () => void;
 }) {
-  const dim = isMobile ? "clamp(58px,17vw,92px)" : "clamp(78px,12vh,132px)";
-  const maxScale = isMobile ? 1.35 : 1.4;
+  // Mobil: větší karta na šířku (landscape) — větší náhled a vejde se název. Desktop: čtverec.
+  const cardW = isMobile ? "clamp(118px,36vw,182px)" : "clamp(78px,12vh,132px)";
+  const cardH = isMobile ? "clamp(80px,24vw,124px)" : "clamp(78px,12vh,132px)";
+  const maxScale = isMobile ? 1.3 : 1.4;
   const thresh = (isMobile ? 150 : 210) * 1.3;
 
   const scale = useTransform(x, (xv) => {
@@ -572,8 +579,8 @@ function StoryCard({
       <motion.div
         className="relative overflow-hidden rounded-2xl border-2 shadow-parchment-lg transition-colors duration-300"
         style={{
-          width: dim,
-          height: dim,
+          width: cardW,
+          height: cardH,
           scale,
           borderColor: isActive ? "#f4c430" : "rgba(253,250,240,.25)",
           transformOrigin: "bottom center",
@@ -605,7 +612,7 @@ function StoryCard({
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: 0.1 }}
-              className="absolute inset-x-0 bottom-0 block p-1.5 text-left font-display text-[10px] font-bold leading-tight text-paper-light drop-shadow line-clamp-2 group-hover:line-clamp-none"
+              className="absolute inset-x-0 bottom-0 block p-1.5 text-left font-display text-[11px] font-bold leading-tight text-paper-light [text-shadow:_0_1px_3px_rgba(0,0,0,.9)] line-clamp-2 group-hover:line-clamp-none"
             >
               {story.title}
             </motion.span>
@@ -731,9 +738,14 @@ function SpeechBubble({ text, tail = "bottom" }: { text: string; tail?: "bottom"
   );
 }
 
-/** Příběhy, jejichž rozsah let se překrývá s vládou panovníka (charakteru). */
-function rulerStories(stories: Story[], r: Ruler): Story[] {
-  return stories.filter((s) => s.yearFrom <= r.activeTo && s.yearTo >= r.activeFrom);
+/**
+ * Příběhy „s danou postavou": nejdřív ty, které postavu přímo uvádějí
+ * (`story.characters`); pokud žádné, spadneme na příběhy překrývající se s obdobím
+ * jejího působení (floruit) — aby filtr nebyl prázdný.
+ */
+function storiesWithChar(stories: Story[], c: Character): Story[] {
+  const featured = stories.filter((s) => (s.characters ?? []).includes(c.slug));
+  return featured.length ? featured : stories.filter((s) => s.yearFrom <= c.activeTo && s.yearTo >= c.activeFrom);
 }
 
 /** Příběhy dané epochy (repYear v rozsahu epochy). */
@@ -932,7 +944,8 @@ function TimelineGrid({
 }) {
   const eraList = useMemo(() => eras ?? [], [eras]);
   const [activeEra, setActiveEra] = useState<Era | null>(null);
-  const [hoverRuler, setHoverRuler] = useState<Ruler | null>(null);
+  const [hoverChar, setHoverChar] = useState<Character | null>(null);
+  const [selectedChar, setSelectedChar] = useState<Character | null>(null);
   // Re-mount klíč EraSlideru — mění se při každém otevření přehledu, aby se pás zón
   // okamžitě přepozicoval na předvybranou epochu (bez animační smyčky přes goTo).
   const [openSeq, setOpenSeq] = useState(0);
@@ -955,15 +968,25 @@ function TimelineGrid({
     setActiveEra(eraList.find((e) => storiesForEra(stories, e).length) ?? eraList[0] ?? null);
   }, [eraList, stories, activeEra]);
 
-  const epochRulers = useMemo(
-    () => (activeEra ? rulersForRange(activeEra.from, activeEra.to, countryCode) : []),
+  // Všechny postavy epochy (panovníci, vědci, umělci, vynálezci…), ne jen panovníci.
+  const epochChars = useMemo(
+    () => (activeEra ? charactersForRange(activeEra.from, activeEra.to, countryCode) : []),
     [activeEra, countryCode]
   );
   const epochStories = useMemo(
     () => (activeEra ? storiesForEra(stories, activeEra) : stories),
     [activeEra, stories]
   );
-  const shown = hoverRuler ? rulerStories(stories, hoverRuler) : epochStories;
+  // Klik na postavu = filtr příspěvků; hover jen rozšiřuje kartu.
+  const shown = selectedChar ? storiesWithChar(stories, selectedChar) : epochStories;
+  // Detail panel drží hoverovanou postavu; bez hoveru zůstane pro aktivní (filtrovanou).
+  const detailChar = hoverChar ?? selectedChar;
+
+  // Přepnutí epochy zruší filtr postavy.
+  useEffect(() => {
+    setSelectedChar(null);
+    setHoverChar(null);
+  }, [activeEra]);
 
   // ── Profil postavy (klik na panovníka) ──
   if (filterRuler) {
@@ -978,7 +1001,7 @@ function TimelineGrid({
           </button>
           <span className="font-display text-sm font-bold text-paper-light/80">{filterRuler.name}</span>
         </div>
-        <CharacterProfileView ruler={filterRuler} stories={rulerStories(stories, filterRuler)} />
+        <CharacterProfileView ruler={filterRuler} stories={storiesWithChar(stories, filterRuler)} />
       </div>
     );
   }
@@ -1003,35 +1026,56 @@ function TimelineGrid({
 
       {/* Obsah — postavy epochy (navázané) + karty příspěvků */}
       <div className="mx-auto max-w-6xl px-5 py-6 md:px-8">
-        {epochRulers.length > 0 && (
-          <section className="mb-6">
+        {epochChars.length > 0 && (
+          <section className="mb-6" onMouseLeave={() => setHoverChar(null)}>
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <h2 className="font-display text-lg font-extrabold">Panovníci{activeEra ? ` · ${activeEra.name}` : ""}</h2>
+              <h2 className="font-display text-lg font-extrabold">Osobnosti{activeEra ? ` · ${activeEra.name}` : ""}</h2>
               <span className="font-serif text-xs italic text-paper-light/50">
-                najeď = filtruj příspěvky · klikni = profil
+                klikni = filtruj příspěvky · najeď = detail
               </span>
             </div>
             <div className="flex gap-2.5 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {epochRulers.map((r) => (
-                <RulerChip
-                  key={r.slug}
-                  ruler={r}
-                  active={hoverRuler?.slug === r.slug}
-                  onHover={() => setHoverRuler(r)}
-                  onLeave={() => setHoverRuler(null)}
-                  onOpen={() => onSelectRuler(r)}
+              {epochChars.map((c) => (
+                <CharChip
+                  key={c.slug}
+                  c={c}
+                  selected={selectedChar?.slug === c.slug}
+                  hovered={hoverChar?.slug === c.slug}
+                  onHover={() => setHoverChar(c)}
+                  onToggle={() => setSelectedChar((prev) => (prev?.slug === c.slug ? null : c))}
                 />
               ))}
             </div>
+
+            {/* Rozšířený detail hoverované (nebo aktivní/filtrované) postavy — mimo scroll, ať se neořízne. */}
+            <AnimatePresence initial={false}>
+              {detailChar && (
+                <motion.div
+                  key={detailChar.slug}
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.22 }}
+                  className="overflow-hidden"
+                >
+                  <CharDetail c={detailChar} onDetail={() => onSelectRuler(detailChar)} />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </section>
         )}
 
-        <PlaceholderZone label="Rychlé akce autora" hint="Nový příspěvek · Rozpracované · Publikovat — připravujeme" />
-        <PlaceholderZone label="Gamifikace" hint="XP, odznaky, žebříček autorů — připravujeme" />
-
-        <h2 className="mb-3 mt-6 font-display text-lg font-extrabold">
-          {hoverRuler ? `Příspěvky · ${hoverRuler.name}` : `Příspěvky${activeEra ? ` · ${activeEra.name}` : ""}`}{" "}
+        <h2 className="mb-3 mt-6 flex flex-wrap items-baseline gap-x-2 font-display text-lg font-extrabold">
+          {selectedChar ? `Příspěvky · ${selectedChar.name}` : `Příspěvky${activeEra ? ` · ${activeEra.name}` : ""}`}
           <span className="font-serif text-sm font-normal italic text-paper-light/50">· {shown.length}</span>
+          {selectedChar && (
+            <button
+              onClick={() => setSelectedChar(null)}
+              className="rounded-full border border-paper-light/25 px-2.5 py-0.5 font-sans text-xs font-medium text-paper-light/70 hover:bg-paper-light/10"
+            >
+              × zrušit filtr
+            </button>
+          )}
         </h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {shown.map((s) => (
@@ -1048,63 +1092,83 @@ function TimelineGrid({
   );
 }
 
-/** Dlaždice panovníka ve slideru spodní zóny — avatar + jméno + roky vlády. */
-function RulerChip({
-  ruler,
-  active,
+/** Kompaktní dlaždice postavy — avatar + jméno + roky. Klik = filtr, hover = detail. */
+function CharChip({
+  c,
+  selected,
+  hovered,
   onHover,
-  onLeave,
-  onOpen,
+  onToggle,
 }: {
-  ruler: Ruler;
-  active: boolean;
+  c: Character;
+  selected: boolean;
+  hovered: boolean;
   onHover: () => void;
-  onLeave: () => void;
-  onOpen: () => void;
+  onToggle: () => void;
 }) {
-  const image = figureImage(ruler);
+  const image = figureImage(c);
   return (
     <button
       type="button"
       onMouseEnter={onHover}
-      onMouseLeave={onLeave}
       onFocus={onHover}
-      onBlur={onLeave}
-      onClick={onOpen}
-      aria-label={`${ruler.name} — profil (najetí filtruje příspěvky)`}
+      onClick={onToggle}
+      aria-label={`${c.name} — filtrovat příspěvky`}
       className={
-        "group flex w-[92px] shrink-0 flex-col items-center gap-1 rounded-2xl border-2 px-1.5 py-2 transition-colors " +
-        (active ? "border-sun bg-sun/10" : "border-paper-light/15 bg-paper-light/[0.04] hover:border-sun/60")
+        "flex w-[92px] shrink-0 flex-col items-center gap-1 rounded-2xl border-2 px-1.5 py-2 transition-colors " +
+        (selected
+          ? "border-sun bg-sun/15"
+          : hovered
+          ? "border-sun/60 bg-paper-light/[0.07]"
+          : "border-paper-light/15 bg-paper-light/[0.04] hover:border-sun/60")
       }
     >
       <div className="relative h-16 w-16 overflow-hidden rounded-xl bg-[radial-gradient(closest-side,#33291a,#17140e)]">
         {image.chroma ? (
-          <ChromaImage
-            src={src(image.src)!}
-            alt={ruler.name}
-            className="absolute left-1/2 top-1 h-[260%] w-auto max-w-none -translate-x-1/2 object-contain"
-          />
+          <ChromaImage src={src(image.src)!} alt={c.name} className="absolute left-1/2 top-1 h-[260%] w-auto max-w-none -translate-x-1/2 object-contain" />
         ) : (
-          <img src={src(image.src)!} alt={ruler.name} className="h-full w-full object-cover object-top" />
+          <img src={src(image.src)!} alt={c.name} className="h-full w-full object-cover object-top" />
         )}
       </div>
-      <div className="w-full truncate text-center font-display text-[11px] font-bold text-paper-light">{ruler.name}</div>
-      <div className="font-serif text-[10px] italic text-paper-light/50">{reignLabel(ruler)}</div>
+      <div className="w-full truncate text-center font-display text-[11px] font-bold text-paper-light">{c.name}</div>
+      <div className="font-serif text-[10px] italic text-paper-light/50">{lifespanLabel(c)}</div>
     </button>
   );
 }
 
-/** Vyhrazená (zatím prázdná) zóna pro budoucí funkci — gamifikace / autorské akce. */
-function PlaceholderZone({ label, hint }: { label: string; hint: string }) {
+/** Rozšířený detail postavy pod řádkem — kategorie, narození/úmrtí, „Zobrazit detail". */
+function CharDetail({ c, onDetail }: { c: Character; onDetail: () => void }) {
+  const image = figureImage(c);
+  const cat = c.category === "ruler" ? c.title ?? "Panovník" : CATEGORY_LABEL[c.category];
   return (
-    <div className="mb-3 rounded-2xl border border-dashed border-paper-light/20 bg-paper-light/[0.03] px-4 py-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-display text-sm font-bold uppercase tracking-wide text-paper-light/70">{label}</span>
-        <span className="rounded-full bg-paper-light/10 px-2 py-0.5 font-display text-[10px] font-bold uppercase text-paper-light/50">
-          brzy
-        </span>
+    <div className="mt-2 flex items-center gap-4 rounded-2xl border border-sun/30 bg-paper-light/[0.05] p-3">
+      <div className="relative h-20 w-20 flex-none overflow-hidden rounded-xl bg-[radial-gradient(closest-side,#33291a,#17140e)]">
+        {image.chroma ? (
+          <ChromaImage src={src(image.src)!} alt={c.name} className="absolute left-1/2 top-1 h-[260%] w-auto max-w-none -translate-x-1/2 object-contain" />
+        ) : (
+          <img src={src(image.src)!} alt={c.name} className="h-full w-full object-cover object-top" />
+        )}
       </div>
-      <p className="mt-0.5 font-serif text-xs italic text-paper-light/45">{hint}</p>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-sun/15 px-2 py-0.5 font-display text-[10px] font-bold uppercase tracking-wide text-sun">{cat}</span>
+          {!c.real && <span className="rounded-full bg-rose-500/15 px-2 py-0.5 font-display text-[10px] font-bold uppercase text-rose-300">fikce</span>}
+          <span className="font-display text-base font-extrabold text-paper-light">{c.name}</span>
+        </div>
+        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 font-serif text-xs text-paper-light/70">
+          {c.bornYear && <span>* {c.bornDate ?? c.bornYear}{c.birthPlace ? `, ${c.birthPlace}` : ""}</span>}
+          {c.diedYear && <span>† {c.diedDate ?? c.diedYear}{c.deathPlace ? `, ${c.deathPlace}` : ""}</span>}
+          {!c.bornYear && !c.diedYear && <span>{lifespanLabel(c)}</span>}
+          {c.category === "ruler" && <span className="text-paper-light/50">vláda {reignLabel(c)}</span>}
+        </div>
+        {c.bio && <p className="mt-1 line-clamp-2 font-serif text-xs italic text-paper-light/55">{c.bio}</p>}
+      </div>
+      <button
+        onClick={onDetail}
+        className="inline-flex flex-none items-center gap-1.5 rounded-full bg-sun px-4 py-2 font-display text-xs font-bold text-ink transition-transform hover:-translate-y-0.5"
+      >
+        <BookOpen className="h-3.5 w-3.5" /> Zobrazit detail
+      </button>
     </div>
   );
 }
